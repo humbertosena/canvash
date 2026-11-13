@@ -4,14 +4,12 @@ Componentes e hooks React para o Canvash: `CanvasSection`, `CanvasSurface`, `Can
 
 ## Instalação
 
-Os pacotes `@canvash/*` ainda não estão no npmjs. Aponte o escopo para o seu registro (por exemplo, um Verdaccio local) no `.npmrc` do projeto:
+Os pacotes `@canvash/*` não estão no npm: cada [Release do GitHub](https://github.com/humbertosena/canvash/releases) traz um arquivo `.tgz` por pacote, e o app aponta o `pnpm add` para a URL deles. Antes de instalar, libere `blockExoticSubdeps: false` no `pnpm-workspace.yaml` do app; o motivo e o passo a passo estão na seção [Instalação do README do repositório](https://github.com/humbertosena/canvash#instalação).
 
-```
-@canvash:registry=http://localhost:4873/
-```
-
-```
-pnpm add @canvash/core @canvash/react react react-dom
+```bash
+V=0.1.0-alpha # a versão da Release
+B=https://github.com/humbertosena/canvash/releases/download/v$V
+pnpm add $B/canvash-core-$V.tgz $B/canvash-react-$V.tgz react react-dom
 ```
 
 Peer dependencies: `react` e `react-dom`, versão 18 ou 19.

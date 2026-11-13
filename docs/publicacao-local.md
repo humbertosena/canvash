@@ -1,8 +1,10 @@
 # Publicação local dos pacotes `@canvash/*`
 
+> **Este guia é para desenvolver a biblioteca com um registro local.** Quem só usa a Canvash instala pelos tarballs da Release do GitHub, sem registro: veja a seção Instalação do [README](../README.md).
+
 Este guia leva do zero a um app novo, fora deste repositório, que instala `@canvash/react` de um registro npm **local** (Verdaccio) e desenha numa tela. Os pacotes ainda não estão no npmjs.
 
-Conferido em 2026-11-06, com Node 26, pnpm 11.1.2 e o template `react-ts` do `create-vite` 9.3.4. Foram executados contra um Verdaccio 6.11.1 de ensaio: subir o registro, criar o usuário por HTTP, publicar os dez tarballs, criar o app, instalar, `pnpm dev` com um retângulo desenhado, `pnpm build`, atualizar um patch e despublicar. Ficam para a entrega da `0.1.0-alpha`, que confere este guia de ponta a ponta: `npm adduser` interativo, a tag e o `pnpm publish:local` real na `main`.
+Conferido em 2026-11-06, com Node 26, pnpm 11.1.2 e o template `react-ts` do `create-vite` 9.3.4. Foram executados contra um Verdaccio 6.11.1 de ensaio: subir o registro, criar o usuário por HTTP, publicar os dez tarballs, criar o app, instalar, `pnpm dev` com um retângulo desenhado, `pnpm build`, atualizar um patch e despublicar. Não foram conferidos de ponta a ponta: o `npm adduser` interativo e o `pnpm publish:local` real na `main`, com a tag `v<versão>`.
 
 ## Visão geral
 
@@ -13,7 +15,7 @@ repositório canvash  ──pnpm publish:local──▶  Verdaccio (localhost:48
 
 - Os dez pacotes sobem juntos, na mesma versão (`0.1.0-alpha`, depois `0.1.0-alpha.1`…).
 - A publicação sai **só da `main`**, com a tag `v<versão>` no `HEAD` e a árvore limpa. Cada correção que o app precisa vira um patch novo.
-- O repositório não tem remoto. Nada daqui vai para o npm público.
+- Este fluxo só fala com o seu registro local. Nada daqui vai para o npm público nem para o GitHub: a Release do GitHub é criada por outro caminho (workflow `Release`, veja o README).
 
 ## 1. Subir o registro
 

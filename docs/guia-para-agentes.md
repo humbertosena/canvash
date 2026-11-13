@@ -24,16 +24,22 @@ Em app React, instale `@canvash/core` e `@canvash/react`. O restante vem como de
 
 ## Instalação
 
-Os pacotes saem de um registro npm local (Verdaccio), não do npmjs.
+A biblioteca não está no npm. Os pacotes saem como arquivos `.tgz` anexados às Releases do GitHub `humbertosena/canvash`, e o app aponta o `pnpm add` para a URL deles. Não use `pnpm add github:humbertosena/canvash`: o pacote chega sem `dist` e quebra.
 
-1. Confirme com o usuário que o Verdaccio está de pé: `curl -s http://localhost:4873/-/ping`.
-2. Aponte o escopo no `.npmrc` do projeto novo:
+1. Descubra a versão da Release mais recente: `gh release list --repo humbertosena/canvash --limit 1` (ou a página de Releases). Se não houver Release, pare e avise o usuário.
+2. No `pnpm-workspace.yaml` do projeto novo (pnpm 11), libere dependência por URL dentro de outra dependência. Sem isso a instalação falha com `ERR_PNPM_EXOTIC_SUBDEP`:
+   ```yaml
+   blockExoticSubdeps: false
    ```
-   @canvash:registry=http://localhost:4873/
+3. Instale, trocando `V` pela versão da Release. Todo pacote `@canvash/*` que o seu código importa entra como dependência direta, e `@canvash/core` sempre:
+   ```bash
+   V=0.1.0-alpha
+   B=https://github.com/humbertosena/canvash/releases/download/v$V
+   pnpm add $B/canvash-core-$V.tgz $B/canvash-react-$V.tgz react react-dom
    ```
-3. Instale: `pnpm add @canvash/core @canvash/react react react-dom` (ou npm/yarn).
+   O arquivo de cada pacote é `canvash-<nome>-<versão>.tgz`, por exemplo `canvash-web-components-$V.tgz`.
 
-Se a instalação falhar por 404, o pacote não foi publicado ainda. Pare e avise o usuário. Não troque por `file:` nem `link:` ao próprio repositório do Canvash sem pedir.
+Se a instalação falhar por 404, a Release ou o arquivo não existe: confira a versão e o nome. Não troque por `file:` nem `link:` ao próprio repositório do Canvash sem pedir.
 
 ## Projeto base recomendado
 
@@ -175,7 +181,7 @@ Os textos vêm em pt-BR e en-US (`defaultI18nPtBR`, `defaultI18nEnUS`). Troque c
 5. **`dispatch` dentro de `subscribe`**: recusado. Agende fora do listener (`queueMicrotask`).
 6. **Dois `react` no bundle**: erros de hooks. Garanta uma única cópia (`resolve.dedupe: ['react', 'react-dom']` no Vite).
 7. **Dois `lit` no bundle**: elementos que não atualizam. Deixe o gerenciador de pacotes deduplicar `lit`.
-8. **Registro errado**: sem o `.npmrc` do escopo, o `@canvash/*` não é achado.
+8. **`ERR_PNPM_EXOTIC_SUBDEP` na instalação**: faltou `blockExoticSubdeps: false` no `pnpm-workspace.yaml` do app. E um `@canvash/*` que o código importa precisa ser dependência direta (URL do `.tgz`), não só transitiva.
 9. **Mudar o `dist` do Canvash**: nunca. Se encontrar defeito na biblioteca, descreva-o ao usuário em vez de contornar com patch no `node_modules`.
 
 ## Verificação

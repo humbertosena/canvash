@@ -1,0 +1,152 @@
+name: Release
+
+# Cria a Release do GitHub da versão que está nos manifestos de packages/*. Não publica em registro
+# npm: a biblioteca é usada apontando o `pnpm add` para os tarballs anexados à Release (README,
+# seção Instalação). Fluxo: subir a versão numa PR (`pnpm version:set`), mesclar, esperar a CI da
+# main ficar verde e disparar este workflow em Actions > Release > Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Só simula: monta os tarballs e mostra as notas, sem criar tag nem Release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Criar a Release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # cria a tag e a Release
+      checks: read # confere que a CI do commit passou
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          # O token de escrita só existe nos passos que o pedem por `env`; não fica no .git/config
+          # enquanto o pnpm instala e compila código de terceiros.
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+        with:
+          version: 11.1.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Recusa versão incoerente (manifestos, constantes, CHANGELOG) e grava as notas da Release.
+      - name: Plan the release
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/release-ci.mjs plan --notes-file "${RUNNER_TEMP}/notas.md" | tee -a "${GITHUB_OUTPUT}"
+
+      # Uma tag existente já aponta para outro commit: não se reaproveita nem se move. Só um 404 do
+      # GitHub quer dizer "livre"; falha de rede ou de permissão reprova em vez de passar.
+      - name: Check that the tag is free
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if out="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" 2>&1)"; then
+            echo "::error::A tag ${TAG} já existe. Suba a versão com pnpm version:set numa PR, ou apague a tag se ela não tem Release."
+            exit 1
+          fi
+          if [[ "${out}" != *"HTTP 404"* ]]; then
+            echo "::error::Não consegui conferir a tag ${TAG}: ${out}"
+            exit 1
+          fi
+          echo "A tag ${TAG} está livre."
+
+      # Só se libera um commit em que a CI inteira passou.
+      - name: Check that CI passed on this commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          counts="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name | startswith("Full Verification"))] | "\(length) \(map(select(.conclusion == "success")) | length)"')"
+          total="${counts% *}"
+          ok="${counts#* }"
+          echo "CI deste commit: ${ok} de ${total} verificações passaram"
+          if [[ "${total}" -eq 0 || "${ok}" -ne "${total}" ]]; then
+            echo "::error::A CI do commit ${GITHUB_SHA} não passou por inteiro (ou ainda está rodando). Espere ficar verde e dispare de novo."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      # No repositório os pacotes dependem uns dos outros por `workspace:*`; o `pnpm pack` troca isso
+      # por uma versão de registro, que não existe aqui. Antes de empacotar, cada dependência interna
+      # passa a apontar para o tarball do irmão na própria Release.
+      - name: Point internal dependencies at the release files
+        shell: bash
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          node scripts/release-ci.mjs use-release-urls \
+            --base-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+
+      - name: Pack the tarballs
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets="${RUNNER_TEMP}/assets"
+          mkdir -p "${assets}"
+          for dir in packages/*/; do
+            pnpm --dir "${dir}" pack --pack-destination "${assets}"
+          done
+          count="$(find "${assets}" -name '*.tgz' | wc -l | tr -d ' ')"
+          expected="$(find packages -mindepth 2 -maxdepth 2 -name package.json | wc -l | tr -d ' ')"
+          if [[ "${count}" -ne "${expected}" ]]; then
+            echo "::error::Esperava ${expected} tarballs e encontrei ${count}."
+            exit 1
+          fi
+          (cd "${assets}" && sha256sum -- *.tgz > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Create the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION: ${{ steps.plan.outputs.version }}
+          PRERELEASE: ${{ steps.plan.outputs.prerelease }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          assets="${RUNNER_TEMP}/assets"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "Simulação: nada foi criado. Tag ${TAG}, pré-release=${PRERELEASE}. Notas:"
+            cat "${RUNNER_TEMP}/notas.md"
+            ls -l "${assets}"
+            exit 0
+          fi
+          args=(--target "${GITHUB_SHA}" --title "Canvash ${VERSION}" --notes-file "${RUNNER_TEMP}/notas.md")
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${TAG}" "${assets}"/*.tgz "${assets}/SHA256SUMS" --repo "${GITHUB_REPOSITORY}" "${args[@]}"
