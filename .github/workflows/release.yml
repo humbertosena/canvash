@@ -34,6 +34,9 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          # O token de escrita só existe nos passos que o pedem por `env`; não fica no .git/config
+          # enquanto o pnpm instala e compila código de terceiros.
+          persist-credentials: false
 
       - name: Install pnpm
         uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
@@ -54,17 +57,24 @@ jobs:
           set -euo pipefail
           node scripts/release-ci.mjs plan --notes-file "${RUNNER_TEMP}/notas.md" | tee -a "${GITHUB_OUTPUT}"
 
-      # Uma tag existente já aponta para outro commit: não se reaproveita nem se move.
+      # Uma tag existente já aponta para outro commit: não se reaproveita nem se move. Só um 404 do
+      # GitHub quer dizer "livre"; falha de rede ou de permissão reprova em vez de passar.
       - name: Check that the tag is free
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.plan.outputs.tag }}
         run: |
           set -euo pipefail
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null 2>&1; then
-            echo "::error::A tag ${TAG} já existe. Suba a versão com pnpm version:set numa PR."
+          if out="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" 2>&1)"; then
+            echo "::error::A tag ${TAG} já existe. Suba a versão com pnpm version:set numa PR, ou apague a tag se ela não tem Release."
             exit 1
           fi
+          if [[ "${out}" != *"HTTP 404"* ]]; then
+            echo "::error::Não consegui conferir a tag ${TAG}: ${out}"
+            exit 1
+          fi
+          echo "A tag ${TAG} está livre."
 
       # Só se libera um commit em que a CI inteira passou.
       - name: Check that CI passed on this commit
@@ -139,4 +149,4 @@ jobs:
           if [[ "${PRERELEASE}" == "true" ]]; then
             args+=(--prerelease)
           fi
-          gh release create "${TAG}" "${assets}"/*.tgz "${assets}/SHA256SUMS" "${args[@]}"
+          gh release create "${TAG}" "${assets}"/*.tgz "${assets}/SHA256SUMS" --repo "${GITHUB_REPOSITORY}" "${args[@]}"

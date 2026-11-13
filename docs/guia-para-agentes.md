@@ -181,7 +181,7 @@ Os textos vêm em pt-BR e en-US (`defaultI18nPtBR`, `defaultI18nEnUS`). Troque c
 5. **`dispatch` dentro de `subscribe`**: recusado. Agende fora do listener (`queueMicrotask`).
 6. **Dois `react` no bundle**: erros de hooks. Garanta uma única cópia (`resolve.dedupe: ['react', 'react-dom']` no Vite).
 7. **Dois `lit` no bundle**: elementos que não atualizam. Deixe o gerenciador de pacotes deduplicar `lit`.
-8. **Registro errado**: sem o `.npmrc` do escopo, o `@canvash/*` não é achado.
+8. **`ERR_PNPM_EXOTIC_SUBDEP` na instalação**: faltou `blockExoticSubdeps: false` no `pnpm-workspace.yaml` do app. E um `@canvash/*` que o código importa precisa ser dependência direta (URL do `.tgz`), não só transitiva.
 9. **Mudar o `dist` do Canvash**: nunca. Se encontrar defeito na biblioteca, descreva-o ao usuário em vez de contornar com patch no `node_modules`.
 
 ## Verificação

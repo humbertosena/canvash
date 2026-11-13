@@ -16,6 +16,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkVersionCoherence, listPackageDirs } from './release-packages.mjs';
+import { isSemver } from './set-version.mjs';
 
 const defaultPackagesDir = fileURLToPath(new URL('../packages/', import.meta.url));
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -111,8 +112,10 @@ export const releaseNotes = (packagesDir, version) => {
     parts.push(`### ${manifest.name}\n\n${body === '' ? 'Sem mudanças registradas.' : body}`);
   }
   parts.push(
-    'Instalação: aponte o `pnpm add` para a URL de cada arquivo `.tgz` desta Release (veja o README). ' +
-      'O `SHA256SUMS` traz a soma de cada arquivo.',
+    'Instalação (sem registro npm): no `pnpm-workspace.yaml` do app, `blockExoticSubdeps: false`; depois ' +
+      'aponte o `pnpm add` para a URL de cada arquivo `.tgz` desta Release, incluindo sempre o ' +
+      '`canvash-core`. Passo a passo: seção Instalação do README do repositório. O `SHA256SUMS` traz ' +
+      'a soma de cada arquivo.',
   );
   return `${parts.join('\n\n')}\n`;
 };
@@ -124,6 +127,9 @@ export const plan = ({ packagesDir = defaultPackagesDir } = {}) => {
     refuse(
       `a versão não é coerente:\n${problems.map((p) => `  ${p.file}: ${p.message}`).join('\n')}`,
     );
+  }
+  if (!isSemver(version)) {
+    refuse(`a versão "${version}" não é semver (sem prefixo v, sem metadado de build com +)`);
   }
   return {
     version,

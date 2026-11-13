@@ -204,6 +204,38 @@ describe('plan e notas da release', () => {
     expect(() => plan({ packagesDir })).toThrowError(/packages\/vue\/package\.json/);
   });
 
+  it('recusa uma versão que não é semver, mesmo coerente em todos os arquivos', () => {
+    const packagesDir = copyPackages();
+    const forced = '0.1.0+build.7';
+    for (const dir of readdirSync(packagesDir)) {
+      const manifestPath = join(packagesDir, dir, 'package.json');
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+      manifest.version = forced;
+      writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      const versionPath = join(packagesDir, dir, 'src', 'version.ts');
+      if (existsSync(versionPath)) {
+        writeFileSync(
+          versionPath,
+          readFileSync(versionPath, 'utf8').replace("'0.1.0-alpha'", `'${forced}'`),
+        );
+      }
+      const changelogPath = join(packagesDir, dir, 'CHANGELOG.md');
+      writeFileSync(
+        changelogPath,
+        readFileSync(changelogPath, 'utf8').replace('## 0.1.0-alpha — ', `## ${forced} — `),
+      );
+    }
+
+    expect(() => plan({ packagesDir })).toThrowError(/semver/);
+  });
+
+  it('as notas dizem o que a instalação exige: blockExoticSubdeps e o core direto', () => {
+    const notes = plan({ packagesDir: copyPackages() }).notes;
+    expect(notes).toContain('blockExoticSubdeps: false');
+    expect(notes).toContain('canvash-core');
+    expect(notes).toContain('SHA256SUMS');
+  });
+
   it('as notas reúnem a seção da versão de cada pacote e ignoram as anteriores', () => {
     const packagesDir = copyPackages();
     const path = join(packagesDir, 'core', 'CHANGELOG.md');
@@ -309,6 +341,18 @@ describe('workflow de release', () => {
     const secrets = [...text.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
     expect(secrets.every((name) => name === 'GITHUB_TOKEN')).toBe(true);
     expect(text).not.toMatch(/pnpm[^\n]*\bpublish\b|npm publish|NPM_TOKEN|NODE_AUTH_TOKEN/);
+  });
+
+  it('o checkout não deixa o token gravado no disco durante o build de terceiros', () => {
+    const text = lines.join('\n');
+    expect(text).toContain('persist-credentials: false');
+  });
+
+  it('só um 404 do GitHub conta como tag livre', () => {
+    const text = lines.join('\n');
+    expect(text).toContain('git/ref/tags/');
+    expect(text).toContain('HTTP 404');
+    expect(text).not.toContain('git ls-remote');
   });
 
   it('nenhum bloco `run:` interpola expressões ${{ }}', () => {

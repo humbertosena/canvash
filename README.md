@@ -47,7 +47,7 @@ pnpm add $B/canvash-core-$V.tgz $B/canvash-react-$V.tgz react react-dom
 
 Para cada pacote, o arquivo se chama `canvash-<nome>-<versão>.tgz`: `canvash-core`, `canvash-react`, `canvash-vue`, `canvash-web-components`, `canvash-renderer-canvas2d`, `canvash-interaction`, `canvash-persistence`, `canvash-export`, `canvash-collaboration` e `canvash-collaboration-yjs`. **Instale como dependência direta todo pacote `@canvash/*` que o seu código importa** (ao menos `@canvash/core`): o pnpm não expõe ao app uma dependência que só outro pacote declara.
 
-**3. Conferir a integridade (opcional).** Baixe o `SHA256SUMS` da Release e rode `shasum -a 256 -c SHA256SUMS` na pasta com os `.tgz`.
+**3. Conferir a integridade (opcional).** Baixe da página da Release os `.tgz` que quer conferir e o `SHA256SUMS` para a mesma pasta e rode `shasum -a 256 --ignore-missing -c SHA256SUMS`. O `SHA256SUMS` está na mesma Release dos arquivos: ele detecta download corrompido, não protege contra uma Release adulterada. Depois do primeiro `pnpm add`, o `pnpm-lock.yaml` do app guarda o hash de cada tarball e o pnpm o confere nas instalações seguintes.
 
 **Atualizar.** Mude o `V` e rode o `pnpm add` de novo: o `package.json` do app guarda a URL, então a versão nova só entra ao trocar a URL.
 
@@ -113,7 +113,7 @@ O `check:full` roda lint, formatação, tipos, arquitetura, testes unitários co
 
 Não há publicação em registro npm. A Release do GitHub é criada por um workflow, a partir da `main`:
 
-1. Numa branch, suba a versão: `pnpm version:set <versão>`, acrescente a seção `## <versão> — AAAA-MM-DD` no `CHANGELOG.md` de cada pacote e atualize o `V` desta seção Instalação.
+1. Numa branch, suba a versão: `pnpm version:set <versão>`, acrescente a seção `## <versão> — AAAA-MM-DD` no `CHANGELOG.md` de cada pacote e atualize a linha `V=` do README, de `docs/guia-para-agentes.md` e dos READMEs dos pacotes (o teste `release-ci` aponta o arquivo que ficar para trás).
 2. Abra a PR para a `main` (push direto é bloqueado) e mescle.
 3. Espere a CI da `main` ficar verde.
 4. Em **Actions → Release → Run workflow**, na `main`: o workflow confere a versão, monta os dez tarballs, cria a tag `v<versão>` e a Release (marcada como pré-release quando a versão tem hífen, como `0.1.0-alpha`) com os `.tgz` e o `SHA256SUMS`. Marque `dry_run` para só simular.
