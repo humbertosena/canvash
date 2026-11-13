@@ -1,5 +1,7 @@
 # Publicação local dos pacotes `@canvash/*`
 
+> **Este guia é para desenvolver a biblioteca com um registro local.** Quem só usa a Canvash instala pelos tarballs da Release do GitHub, sem registro: veja a seção Instalação do [README](../README.md).
+
 Este guia leva do zero a um app novo, fora deste repositório, que instala `@canvash/react` de um registro npm **local** (Verdaccio) e desenha numa tela. Os pacotes ainda não estão no npmjs.
 
 Conferido em 2026-11-06, com Node 26, pnpm 11.1.2 e o template `react-ts` do `create-vite` 9.3.4. Foram executados contra um Verdaccio 6.11.1 de ensaio: subir o registro, criar o usuário por HTTP, publicar os dez tarballs, criar o app, instalar, `pnpm dev` com um retângulo desenhado, `pnpm build`, atualizar um patch e despublicar. Ficam para a entrega da `0.1.0-alpha`, que confere este guia de ponta a ponta: `npm adduser` interativo, a tag e o `pnpm publish:local` real na `main`.
