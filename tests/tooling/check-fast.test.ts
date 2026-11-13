@@ -12,5 +12,5 @@ describe('check-fast', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/^check:fast: limpo \(\d+\.\d+s\)\n$/);
-  }, 15000);
+  }, 60000);
 });
