@@ -1,0 +1,3045 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvash Vanilla Playground</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #f8fafc;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        color: #0f172a;
+      }
+      h1 {
+        margin-top: 0;
+        margin-bottom: 12px;
+        font-size: 1.25rem;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+        align-items: center;
+      }
+      .btn-group {
+        display: inline-flex;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid #cbd5e1;
+      }
+      .shapes-group {
+        display: inline-flex;
+        flex-wrap: wrap;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .shapes-group button {
+        padding: 6px 7px;
+        font-size: 0.8rem;
+      }
+      .shapes-group legend {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      button {
+        background: #ffffff;
+        border: none;
+        border-right: 1px solid #cbd5e1;
+        padding: 6px 12px;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:last-child {
+        border-right: none;
+      }
+      button:hover {
+        background: #f1f5f9;
+      }
+      button:active {
+        background: #e2e8f0;
+      }
+      .info-bar {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 12px;
+        font-size: 0.875rem;
+        font-family: monospace;
+        color: #334155;
+        height: 18px;
+        line-height: 18px;
+        overflow: hidden;
+      }
+      .canvas-wrap {
+        position: relative;
+        width: 800px;
+      }
+      .canvas-controls {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .cc-pill,
+      .cc-zoom-button,
+      .cc-help-button {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
+      }
+      .cc-pill {
+        display: inline-flex;
+        gap: 2px;
+        padding: 4px 6px;
+        border-radius: 8px;
+      }
+      .cc-pill button {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 6px;
+        border: 1px solid transparent;
+      }
+      .cc-zoom {
+        position: relative;
+        display: inline-flex;
+      }
+      .cc-zoom-button {
+        min-width: 64px;
+        height: 42px;
+        border-radius: 8px;
+        font-variant-numeric: tabular-nums;
+      }
+      .cc-menu {
+        position: absolute;
+        right: 0;
+        bottom: calc(100% + 8px);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        min-width: 220px;
+        padding: 4px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+      }
+      .cc-menu[hidden] {
+        display: none;
+      }
+      .cc-menu button {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        width: 100%;
+        border: 1px solid transparent;
+        text-align: left;
+      }
+      .cc-menu button[aria-disabled='true'] {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .cc-shortcut {
+        font-size: 12px;
+        color: #475569;
+      }
+      .cc-help-button {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 50%;
+        font-weight: 600;
+      }
+      dialog.cc-help {
+        width: min(480px, calc(100vw - 32px));
+        padding: 0;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+      }
+      dialog.cc-help::backdrop {
+        background: rgb(15 23 42 / 0.4);
+      }
+      .cc-help-body {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 20px 24px 8px;
+        font-size: 14px;
+      }
+      .cc-help-body h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .cc-help-body h3 {
+        margin: 0 0 4px;
+        font-size: 13px;
+        color: #475569;
+      }
+      .cc-help-body dl {
+        margin: 0;
+      }
+      .cc-help-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 3px 0;
+      }
+      .cc-help-row dt,
+      .cc-help-row dd {
+        margin: 0;
+      }
+      .cc-help-row kbd {
+        font-family: inherit;
+        font-size: 12px;
+        color: #475569;
+        white-space: nowrap;
+      }
+      .cc-help-close {
+        margin: 0 24px 16px;
+        float: right;
+      }
+      #canvas-container {
+        width: 800px;
+        height: 600px;
+        background: #f2f3f5;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        position: relative;
+      }
+      .extra-panel {
+        width: 800px;
+        margin-top: 16px;
+        padding: 16px;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-sizing: border-box;
+      }
+      .extra-panel-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .extra-panel-label {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #334155;
+        min-width: 140px;
+      }
+      .status-pill {
+        font-family: monospace;
+        font-size: 0.8125rem;
+        padding: 4px 8px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+      }
+
+      /* ===== Layout de ilhas flutuantes (padrão) ===== */
+      body:not(.classic) {
+        padding: 0;
+        overflow: hidden;
+        background: #f2f3f5;
+        color: #1f1f1f;
+      }
+      body:not(.classic) .shell {
+        position: fixed;
+        inset: 0;
+      }
+      body:not(.classic) .canvas-wrap {
+        position: absolute;
+        inset: 0;
+        width: auto;
+      }
+      body:not(.classic) #canvas-container {
+        width: 100%;
+        height: 100%;
+        background: #f2f3f5;
+        border: 0;
+        box-shadow: none;
+      }
+      body:not(.classic) .shell-top {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        z-index: 30;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        pointer-events: none;
+      }
+      body:not(.classic) .shell-top-start,
+      body:not(.classic) .shell-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        pointer-events: auto;
+      }
+      body:not(.classic) .shell-actions {
+        gap: 8px;
+      }
+      #shell-menu-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 32px;
+        padding: 0;
+        color: #1f1f1f;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 9999px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      /* Hover e ilha temporária aberta: o mesmo fundo, mais forte e opaco que o de repouso. */
+      #shell-menu-button:hover,
+      #shell-menu-button:active,
+      #shell-menu-button[aria-expanded='true'] {
+        background: #d9dbe0;
+      }
+      #shell-title {
+        max-width: min(40vw, 480px);
+        padding: 4px 6px;
+        overflow: hidden;
+        font-weight: 700;
+        font-size: 14px;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        background: none;
+        border: 0;
+        border-radius: 8px;
+        cursor: text;
+      }
+      /* Em repouso o título não ganha fundo nem com o ponteiro em cima. */
+      #shell-title:hover,
+      #shell-title:active {
+        background: none;
+      }
+      #shell-title:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 2px;
+      }
+      /* Em edição: itálico (sem negrito), fundo transparente e só uma linha embaixo, em degradê da
+         esquerda para a direita, do tom de seleção dos itens das ilhas à cor do canvas. */
+      #shell-title-input {
+        box-sizing: border-box;
+        width: min(40vw, 320px);
+        padding: 4px 8px 3px;
+        font: inherit;
+        font-weight: 400;
+        font-style: italic;
+        font-size: 14px;
+        background: var(--canvash-title-edit-bg, transparent);
+        border: 1px solid transparent;
+        border-bottom-width: 2px;
+        border-image: var(
+            --canvash-title-edit-line,
+            linear-gradient(
+              90deg,
+              var(--canvash-surface-float-item-hover, #ccced3),
+              var(--canvash-canvas-bg, #f2f3f5)
+            )
+          )
+          0 0 1 0;
+        border-radius: 8px;
+      }
+      #shell-title-input:focus {
+        outline: none;
+      }
+      /* Ilhas do topo à direita: Compartilhar, Exportar e o avatar. */
+      body:not(.classic) .shell-pill {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        gap: 6px;
+        box-sizing: border-box;
+        height: 32px;
+        padding: 0 12px;
+        color: #1f1f1f;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        white-space: nowrap;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 9999px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        cursor: pointer;
+      }
+      body:not(.classic) .shell-pill:hover,
+      body:not(.classic) .shell-pill:active,
+      body:not(.classic) .shell-pill[aria-expanded='true'] {
+        background: #d9dbe0;
+      }
+      body:not(.classic) .shell-pill:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 2px;
+      }
+      body:not(.classic) .shell-pill svg {
+        flex: none;
+      }
+      /* Pilha de avatares e ilha de participantes (as mesmas medidas do <canvas-section>). */
+      body:not(.classic) .participants {
+        position: relative;
+        flex: none;
+      }
+      body:not(.classic) .participants[hidden] {
+        display: none;
+      }
+      body:not(.classic) .participants-stack {
+        display: inline-flex;
+        align-items: center;
+        box-sizing: border-box;
+        height: 32px;
+        padding: 0 12px 0 20px;
+        font: inherit;
+        color: #1f1f1f;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 9999px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        cursor: pointer;
+      }
+      body:not(.classic) .participants-stack:hover,
+      body:not(.classic) .participants-stack[aria-expanded='true'] {
+        background: #d9dbe0;
+      }
+      body:not(.classic) .participants-stack:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 2px;
+      }
+      body:not(.classic) .participant-avatar,
+      body:not(.classic) .participants-more {
+        display: inline-grid;
+        place-items: center;
+        flex: none;
+        box-sizing: border-box;
+        width: 24px;
+        height: 24px;
+        margin-left: -8px;
+        overflow: hidden;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px #ebecef;
+      }
+      body:not(.classic) .participant-avatar {
+        background: var(--ring);
+        border: 2px solid var(--ring);
+      }
+      body:not(.classic) .participant-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+      }
+      body:not(.classic) .participants-more {
+        color: #ffffff;
+        background: #4b5563;
+      }
+      body:not(.classic) .participants-island {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        z-index: 20;
+        box-sizing: border-box;
+        min-width: 260px;
+        max-width: min(360px, calc(100vw - 32px));
+        padding: 4px 0;
+        color: #1f1f1f;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      body:not(.classic) .participants-title {
+        padding: 8px 12px;
+        font-weight: 700;
+      }
+      body:not(.classic) .participants-list {
+        max-height: 320px;
+        margin: 0;
+        padding: 0;
+        overflow-y: auto;
+        list-style: none;
+      }
+      body:not(.classic) .participant-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-sizing: border-box;
+        height: 40px;
+        padding: 0 12px;
+      }
+      body:not(.classic) .participant-row .participant-avatar {
+        margin-left: 0;
+      }
+      body:not(.classic) .participant-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      body:not(.classic) .participant-you {
+        opacity: 0.7;
+      }
+      body:not(.classic) .follow-button,
+      body:not(.classic) .share-stop-item {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        background: transparent;
+        border: 0;
+      }
+      body:not(.classic) .follow-button {
+        padding: 4px 10px;
+        font-weight: 700;
+        border-radius: 9999px;
+      }
+      body:not(.classic) .share-stop-item {
+        display: block;
+        width: 100%;
+        padding: 10px 12px;
+        text-align: left;
+      }
+      body:not(.classic) .follow-button:hover,
+      body:not(.classic) .share-stop-item:hover {
+        background: #ccced3;
+      }
+      body:not(.classic) .follow-button:focus-visible,
+      body:not(.classic) .share-stop-item:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: -2px;
+      }
+      body:not(.classic) .follow-frame {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        pointer-events: none;
+        box-shadow: inset 0 0 0 2px var(--follow-color);
+      }
+      body:not(.classic) .following-banner {
+        position: absolute;
+        top: 56px;
+        left: 50%;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        max-width: calc(100% - 32px);
+        box-sizing: border-box;
+        padding: 6px 8px 6px 14px;
+        transform: translateX(-50%);
+        color: #1f1f1f;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 9999px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      body:not(.classic) .following-banner [role='status'] {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 700;
+      }
+      body:not(.classic) .following-stop {
+        flex: none;
+        padding: 4px 12px;
+        font: inherit;
+        font-weight: 700;
+        color: inherit;
+        cursor: pointer;
+        background: transparent;
+        border: 1px solid currentColor;
+        border-radius: 9999px;
+      }
+      body:not(.classic) .following-stop:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 2px;
+      }
+      body:not(.classic) .follow-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+      body:not(.classic) .participants-divider {
+        height: 1px;
+        margin: 4px 0;
+        background: rgba(0, 0, 0, 0.12);
+      }
+      /* Ponto de status da pill Compartilhar: 8 px, 4,25:1 com o fundo da pill. */
+      body:not(.classic) .shell-share-status {
+        flex: none;
+        box-sizing: border-box;
+        width: 8px;
+        height: 8px;
+        background: var(--canvash-share-active-color, #15803d);
+        border-radius: 50%;
+      }
+      body:not(.classic) .shell-share-status[hidden] {
+        display: none;
+      }
+      body:not(.classic) .shell-share-status[data-state='connecting'] {
+        animation: shell-share-pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes shell-share-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        body:not(.classic) .shell-share-status[data-state='connecting'] {
+          animation: none;
+          opacity: 0.5;
+        }
+      }
+      body:not(.classic) .shell-export {
+        position: relative;
+      }
+      body:not(.classic) .shell-export-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        z-index: 40;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        box-sizing: border-box;
+        min-width: 180px;
+        padding: 6px;
+        background: #d9dbe0;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      body:not(.classic) .shell-export-menu[hidden] {
+        display: none;
+      }
+      body:not(.classic) .shell-export-menu button {
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 36px;
+        padding: 6px 10px;
+        color: #1f1f1f;
+        font: inherit;
+        font-size: 14px;
+        text-align: left;
+        background: none;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      body:not(.classic) .shell-export-menu button:hover {
+        background: var(--canvash-surface-float-item-hover, #ccced3);
+      }
+      body:not(.classic) .shell-export-menu button:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: -2px;
+      }
+      body:not(.classic) .shell-avatar {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        overflow: hidden;
+        color: #ffffff;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        background: #1f1f1f;
+        border: 0;
+        border-radius: 50%;
+        box-shadow: none;
+        cursor: pointer;
+      }
+      body:not(.classic) .shell-avatar:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 2px;
+      }
+      body:not(.classic) .shell-avatar img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      /* Tela estreita: as pills ficam só com o ícone; o nome acessível vem do aria-label. */
+      @media (max-width: 599px) {
+        body:not(.classic) .shell-pill {
+          padding: 0 5px;
+        }
+        body:not(.classic) .shell-pill-label {
+          display: none;
+        }
+      }
+      body:not(.classic) .shell-menu {
+        position: absolute;
+        top: 64px;
+        left: 16px;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-sizing: border-box;
+        width: 240px;
+        max-width: calc(100vw - 32px);
+        max-height: calc(100% - 96px);
+        padding: 12px;
+        overflow: auto;
+        background: #d9dbe0;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      body:not(.classic) .shell-menu[hidden] {
+        display: none;
+      }
+      /* Itens do host no menu hambúrguer: desenhados de um array por shell.ts. */
+      .shell-menu-items {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .shell-menu-item {
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 36px;
+        padding: 6px 10px;
+        color: #1f1f1f;
+        font: inherit;
+        font-size: 14px;
+        text-align: left;
+        background: none;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .shell-menu-item:hover {
+        background: var(--canvash-surface-float-item-hover, #ccced3);
+      }
+      .shell-menu-item:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: -2px;
+      }
+      body:not(.classic) .shell-view-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      body:not(.classic) .playground-panel .info-bar {
+        flex-direction: column;
+        height: auto;
+        margin: 0;
+        gap: 2px;
+      }
+      body:not(.classic) .playground-panel .extra-panel {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        background: none;
+        border: 0;
+        box-shadow: none;
+      }
+      /* Toolbar do layout de ilhas: à direita, centralizada na vertical, com duas áreas (controle e
+         formas) separadas por divisor e ghost islands abertas à esquerda. Sem overflow: as ilhas
+         abrem para fora dela e seriam cortadas. */
+      body:not(.classic) .shell-toolbar {
+        position: absolute;
+        top: 50%;
+        right: 16px;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        box-sizing: border-box;
+        padding: 4px 6px;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        transform: translateY(-50%);
+      }
+      body:not(.classic) .shell-toolbar .tool-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        align-self: stretch;
+        gap: 2px;
+      }
+      body:not(.classic) .shell-toolbar .btn-group {
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+      }
+      body:not(.classic) .shell-toolbar .island-group {
+        position: relative;
+        display: flex;
+        align-self: stretch;
+        justify-content: center;
+      }
+      body:not(.classic) .shell-toolbar button {
+        position: relative;
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+        padding: 0;
+        color: #1f1f1f;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+      body:not(.classic) .shell-toolbar button:hover {
+        background: rgba(0, 0, 0, 0.06);
+      }
+      body:not(.classic) .shell-toolbar button:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 1px;
+      }
+      body:not(.classic) .shell-toolbar button[aria-pressed='true'] {
+        color: #ffffff;
+        background: #1f1f1f;
+        border-color: #1f1f1f;
+      }
+      /* O nome continua na página para leitores de tela; no layout de ilhas só o ícone aparece. */
+      body:not(.classic) .shell-toolbar .btn-label,
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      /* Os botões soltos que a ilha substitui (nota) e os proxies da Tinta e da borracha. */
+      body:not(.classic) #btn-tool-sticky {
+        display: none;
+      }
+      /* Indicador de grupo: triângulo de 4 px no canto, que não é alvo de clique. */
+      body:not(.classic) .shell-toolbar .group-button::after {
+        content: '';
+        position: absolute;
+        right: 3px;
+        bottom: 3px;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 0 0 4px 4px;
+        border-color: transparent transparent currentColor transparent;
+        opacity: 0.6;
+        pointer-events: none;
+      }
+      /* Ghost island: fundo e botão de origem em #d9dbe0; item sob o ponteiro em #ccced3. */
+      body:not(.classic)
+        .shell-toolbar
+        .group-button[aria-expanded='true']:not([aria-pressed='true']) {
+        background: #d9dbe0;
+      }
+      body:not(.classic) .shell-toolbar .ghost-island {
+        position: absolute;
+        top: 0;
+        right: calc(100% + 12px);
+        z-index: 20;
+        display: none;
+        padding: 4px;
+        background: #d9dbe0;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      body:not(.classic) .shell-toolbar .ghost-island.open {
+        display: block;
+      }
+      body:not(.classic) .shell-toolbar .ghost-island fieldset,
+      body:not(.classic) .shell-toolbar .island-items {
+        display: grid;
+        grid-template-columns: repeat(4, 32px);
+        gap: 2px;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        border: 0;
+      }
+      body:not(.classic) .shell-toolbar #sticky-island .island-items {
+        grid-template-columns: repeat(3, 32px);
+      }
+      body:not(.classic) .shell-toolbar .ghost-island button:hover:not([aria-checked='true']) {
+        background: #ccced3;
+      }
+      body:not(.classic) .shell-toolbar .ghost-island button[aria-checked='true'] {
+        color: #ffffff;
+        background: #1f1f1f;
+        border-color: #1f1f1f;
+      }
+      body:not(.classic) .shell-toolbar .swatch {
+        width: 18px;
+        height: 18px;
+        border: 1px solid rgba(0, 0, 0, 0.35);
+        border-radius: 4px;
+      }
+      body:not(.classic) .shell-toolbar .wide-button {
+        grid-column: 1 / -1;
+        width: 100%;
+        height: 28px;
+        font-size: 0.75rem;
+      }
+      body:not(.classic) .shell-toolbar .shapes-group legend {
+        position: absolute;
+      }
+      body:not(.classic) .canvas-controls {
+        right: 16px;
+        bottom: 16px;
+      }
+      /* Botão do playground: no fim da toolbar, abaixo de um divisor. */
+      body:not(.classic) .shell-toolbar .shell-toolbar-separator {
+        flex: none;
+        align-self: stretch;
+        height: 1px;
+        margin: 2px 0;
+        background: rgba(0, 0, 0, 0.12);
+      }
+      body:not(.classic) .shell-toolbar .playground-button {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        align-self: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        color: #1f1f1f;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+      }
+      body:not(.classic) .shell-toolbar .playground-button:hover,
+      body:not(.classic) .shell-toolbar .playground-button:active {
+        background: rgba(0, 0, 0, 0.06);
+      }
+      body:not(.classic) .shell-toolbar .playground-button:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 1px;
+      }
+      body:not(.classic) .shell-toolbar .playground-button[aria-expanded='true'],
+      body:not(.classic) .shell-toolbar .playground-button[aria-expanded='true']:hover {
+        color: #ffffff;
+        background: #1f1f1f;
+        border-color: #1f1f1f;
+      }
+      /* Cartão do playground: um popover à esquerda da toolbar, centralizado na vertical. O `right`
+         e o max-width são reservas: ao abrir, o shell.ts os recalcula pela largura real da toolbar. */
+      body:not(.classic) .playground-panel {
+        position: fixed;
+        inset: auto;
+        top: 50%;
+        right: 160px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-sizing: border-box;
+        width: 360px;
+        max-width: min(360px, calc(100vw - 32px - 52px - 12px));
+        max-height: calc(100vh - 32px);
+        margin: 0;
+        padding: 12px;
+        overflow: auto;
+        color: #1f1f1f;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        transform: translateY(-50%);
+      }
+      /* O display do cartão venceria o display: none do navegador para o popover fechado. */
+      body:not(.classic) .playground-panel:not(:popover-open) {
+        display: none;
+      }
+      /* Aviso passageiro logo abaixo do topo (menu, compartilhar e avatar). */
+      body:not(.classic) #app-status {
+        position: fixed;
+        top: 60px;
+        left: 50%;
+        z-index: 50;
+        max-width: calc(100vw - 32px);
+        padding: 6px 14px;
+        font-size: 13px;
+        color: #1f1f1f;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 9999px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+      #app-status:empty {
+        display: none;
+      }
+
+      /* ===== Mini-menu da seleção e painel de propriedades ===== */
+      .selection-menu {
+        position: absolute;
+        z-index: 5;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .selection-menu[hidden] {
+        display: none;
+      }
+      .selection-menu button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: #1f1f1f;
+        cursor: pointer;
+      }
+      .selection-menu button:hover,
+      .selection-menu button[aria-expanded='true'] {
+        background: rgba(0, 0, 0, 0.06);
+      }
+      /* Continua focável no tabindex móvel, mas sem efeito: o hover não destaca o botão. */
+      .selection-menu button[aria-disabled='true'] {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .selection-menu button[aria-disabled='true']:hover {
+        background: transparent;
+      }
+      .selection-menu button:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 1px;
+      }
+      /* Exportar board: o submenu de formatos é irmão do mini-menu, para o tabindex móvel não contá-lo. */
+      .export-board-menu {
+        position: absolute;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 4px;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        font-size: 13px;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .export-board-menu[hidden] {
+        display: none;
+      }
+      .export-board-menu button {
+        min-width: 64px;
+        height: 32px;
+        padding: 0 12px;
+        text-align: left;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: #1f1f1f;
+        cursor: pointer;
+      }
+      .export-board-menu button:hover {
+        background: rgba(0, 0, 0, 0.06);
+      }
+      .export-board-menu button:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 1px;
+      }
+      /* Popover na top layer: o navegador o centraliza; aqui a posição vem de left e top. */
+      .properties-panel {
+        position: fixed;
+        inset: auto;
+        box-sizing: border-box;
+        width: min(280px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        margin: 0;
+        padding: 12px;
+        overflow: auto;
+        color: #1f1f1f;
+        background: #ebecef;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .properties-panel[hidden] {
+        display: none;
+      }
+      /* Seção "Texto na forma" do painel de propriedades: rádios em grupo, tamanho, negrito e cor. */
+      .label-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      /* O display das linhas do painel vence o atributo hidden: sem isto a seção escondida aparece. */
+      .label-section[hidden],
+      .label-field[hidden] {
+        display: none;
+      }
+      .label-field-name {
+        font-size: 0.8125rem;
+        color: #334155;
+      }
+      .label-radios {
+        display: inline-flex;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .label-radios button[aria-checked='true'],
+      .label-toggle[aria-pressed='true'] {
+        background: #1f1f1f;
+        color: #ffffff;
+      }
+      .label-toggle[aria-pressed='mixed'] {
+        background: #cbd5e1;
+      }
+      .label-color-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .label-radios button:disabled,
+      .label-toggle:disabled,
+      .label-section select:disabled,
+      .label-section input:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      /* No layout de ilhas o painel é uma ghost island ao lado da toolbar, alinhada ao botão. */
+      body:not(.classic) .shell-toolbar .properties-area .properties-panel {
+        position: absolute;
+        top: 0;
+        right: calc(100% + 12px);
+        z-index: 20;
+        background: #d9dbe0;
+      }
+      body:not(.classic) .shell-toolbar .properties-area .properties-panel.flipped {
+        right: auto;
+        left: calc(100% + 12px);
+      }
+      .properties-panel .extra-panel-row,
+      .properties-panel .btn-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .properties-panel .extra-panel-label {
+        min-width: 0;
+      }
+      body.classic .selection-menu {
+        display: none;
+      }
+
+      /* ===== ?layout=classic: o layout anterior, em barras fixas ===== */
+      /* As áreas e as ilhas de grupo só existem no layout de ilhas: aqui os botões voltam soltos. */
+      body.classic .shell-toolbar .tool-area,
+      body.classic .shell-toolbar .island-group,
+      body.classic .shell-toolbar .ghost-island,
+      body.classic .shell-toolbar .island-items {
+        display: contents;
+      }
+      body.classic .shell-toolbar .group-button,
+      body.classic .shell-toolbar .shell-only,
+      body.classic .shell-toolbar .area-separator,
+      body.classic .shell-toolbar .btn-icon,
+      body.classic #sticky-island {
+        display: none;
+      }
+
+      body.classic .shell {
+        display: flex;
+        flex-direction: column;
+      }
+      body.classic .shell-top {
+        order: 0;
+        display: flex;
+        margin-bottom: 12px;
+      }
+      body.classic .shell-top-start {
+        display: none;
+      }
+      body.classic .shell-actions {
+        display: flex;
+        gap: 8px;
+      }
+      /* No layout clássico não há pills nem avatar: os itens de exportação voltam como botões soltos. */
+      body.classic #shell-share-button,
+      body.classic #shell-export-button {
+        display: none;
+      }
+      body.classic .shell-export {
+        display: contents;
+      }
+      body.classic .shell-export-menu,
+      body.classic .shell-export-menu[hidden] {
+        display: flex;
+        gap: 8px;
+      }
+      body.classic .shell-menu,
+      body.classic .shell-menu[hidden] {
+        display: none;
+      }
+      /* Sem popover: os controles do playground ficam soltos na página, como antes. */
+      body.classic .playground-panel {
+        display: contents;
+      }
+      body.classic .shell-toolbar .shell-toolbar-separator,
+      body.classic .shell-toolbar .playground-button {
+        display: none;
+      }
+      body.classic .shell-view-controls,
+      body.classic .shell-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+        align-items: center;
+      }
+      body.classic .shell-view-controls {
+        order: 1;
+      }
+      body.classic .shell-toolbar {
+        order: 2;
+      }
+      body.classic .info-bar {
+        order: 3;
+      }
+      body.classic .canvas-wrap {
+        order: 4;
+      }
+      body.classic .extra-panel {
+        order: 5;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // ?layout=classic: o layout anterior (barras fixas, canvas de 800 × 600), usado pelas jornadas de teste.
+      if (new URLSearchParams(location.search).get('layout') === 'classic') {
+        document.body.classList.add('classic');
+      }
+    </script>
+    <div class="shell" id="shell">
+      <div class="shell-top" id="shell-top">
+        <div class="shell-top-start">
+          <button
+            type="button"
+            id="shell-menu-button"
+            data-testid="shell-menu-button"
+            aria-label="Menu"
+            aria-expanded="false"
+            aria-controls="shell-menu"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            id="shell-title"
+            data-testid="shell-title"
+            aria-label="Editar título: Canvash — Vanilla"
+          >
+            Canvash — Vanilla
+          </button>
+        </div>
+        <div class="shell-actions" id="shell-actions">
+          <button
+            type="button"
+            class="shell-pill"
+            id="shell-share-button"
+            data-testid="shell-share-button"
+            data-sharing="off"
+            aria-label="Compartilhar"
+          >
+            <svg
+              viewBox="0 0 256 256"
+              width="16"
+              height="16"
+              fill="currentColor"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M176,160a39.89,39.89,0,0,0-28.62,12.09l-46.1-29.63a39.8,39.8,0,0,0,0-28.92l46.1-29.63a40,40,0,1,0-8.66-13.45l-46.1,29.63a40,40,0,1,0,0,55.82l46.1,29.63A40,40,0,1,0,176,160Zm0-128a24,24,0,1,1-24,24A24,24,0,0,1,176,32ZM64,152a24,24,0,1,1,24-24A24,24,0,0,1,64,152Zm112,72a24,24,0,1,1,24-24A24,24,0,0,1,176,224Z"
+              />
+            </svg>
+            <span class="shell-pill-label">Compartilhar</span>
+            <span
+              class="shell-share-status"
+              id="shell-share-status"
+              data-testid="shell-share-status"
+              data-state="off"
+              aria-hidden="true"
+              hidden
+            ></span>
+          </button>
+          <div class="shell-export" id="shell-export">
+            <button
+              type="button"
+              class="shell-pill"
+              id="shell-export-button"
+              data-testid="shell-export-button"
+              aria-label="Exportar"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="shell-export-menu"
+            >
+              <svg
+                viewBox="0 0 18 18"
+                width="20"
+                height="20"
+                fill="currentColor"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  d="M4.05 15.3C3.675 15.3 3.35625 15.1687 3.09375 14.9062C2.83125 14.6437 2.7 14.325 2.7 13.95V10.8H4.05V13.95H13.95V4.05H4.05V7.2H2.7V4.05C2.7 3.675 2.83125 3.35625 3.09375 3.09375C3.35625 2.83125 3.675 2.7 4.05 2.7H13.95C14.325 2.7 14.6438 2.83125 14.9063 3.09375C15.1688 3.35625 15.3 3.675 15.3 4.05V13.95C15.3 14.325 15.1688 14.6437 14.9063 14.9062C14.6438 15.1687 14.325 15.3 13.95 15.3H4.05ZM8.1 12.6L7.14375 11.6437L9.1125 9.675H2.7V8.325H9.1125L7.14375 6.35625L8.1 5.4L11.7 9L8.1 12.6Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <span class="shell-pill-label">Exportar</span>
+            </button>
+            <div
+              class="shell-export-menu"
+              id="shell-export-menu"
+              data-testid="shell-export-menu"
+              role="menu"
+              aria-label="Opções de exportação"
+              hidden
+            >
+              <button
+                type="button"
+                role="menuitem"
+                id="btn-export-svg"
+                data-testid="btn-export-svg"
+                data-format="svg"
+                title="Exportar documento como SVG"
+              >
+                Exportar SVG
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                id="btn-export-png"
+                data-testid="btn-export-png"
+                data-format="png"
+                title="Exportar documento como PNG"
+              >
+                Exportar PNG
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="shell-menu" id="shell-menu" data-testid="shell-menu" hidden></div>
+
+      <!-- Playground, persistência e colaboração: o que antes morava no menu hambúrguer. No layout
+           clássico o shell.ts tira o `popover` e os controles ficam soltos na página. -->
+      <div
+        class="playground-panel"
+        id="playground-panel"
+        data-testid="playground-panel"
+        popover="auto"
+        role="group"
+        aria-label="Playground"
+      >
+        <div class="shell-view-controls">
+          <div class="btn-group">
+            <button id="btn-zoom-in" data-testid="btn-zoom-in" title="Aproximar zoom">
+              + Zoom
+            </button>
+            <button id="btn-zoom-out" data-testid="btn-zoom-out" title="Afastar zoom">
+              - Zoom
+            </button>
+            <button id="btn-zoom-reset" data-testid="btn-zoom-reset" title="Zoom 100%">100%</button>
+            <button id="btn-zoom-min" data-testid="btn-zoom-min" title="Zoom mínimo (0.05x)">
+              0.05x
+            </button>
+            <button id="btn-zoom-max" data-testid="btn-zoom-max" title="Zoom máximo (16x)">
+              16x
+            </button>
+          </div>
+          <div class="btn-group">
+            <button id="btn-pan-left" data-testid="btn-pan-left" title="Mover para esquerda">
+              ←
+            </button>
+            <button id="btn-pan-right" data-testid="btn-pan-right" title="Mover para direita">
+              →
+            </button>
+            <button id="btn-pan-up" data-testid="btn-pan-up" title="Mover para cima">↑</button>
+            <button id="btn-pan-down" data-testid="btn-pan-down" title="Mover para baixo">↓</button>
+            <button id="btn-pan-reset" data-testid="btn-pan-reset" title="Resetar pan">
+              Origem (0, 0)
+            </button>
+          </div>
+          <div class="btn-group">
+            <button
+              id="btn-toggle-grid"
+              data-testid="btn-toggle-grid"
+              title="Alternar grade visual"
+            >
+              Grade: Desativada
+            </button>
+            <button
+              id="btn-toggle-snap"
+              data-testid="btn-toggle-snap"
+              title="Alternar snapping magnético"
+            >
+              Snap: Desativado
+            </button>
+          </div>
+        </div>
+        <div class="info-bar">
+          <div id="viewport-info" data-testid="viewport-info">Viewport: x=0, y=0, zoom=1.00</div>
+          <div id="tool-info" data-testid="tool-info">Ferramenta: select</div>
+          <div id="hittest-info" data-testid="hittest-info">Cursor: nenhum</div>
+        </div>
+        <div class="extra-panel">
+          <div class="extra-panel-row">
+            <span class="extra-panel-label">🗒️ Nota adesiva:</span>
+            <select
+              id="select-sticky-color"
+              data-testid="select-sticky-color"
+              aria-label="Cor da nota"
+              title="Cor das próximas notas"
+            >
+              <option value="yellow">Amarelo</option>
+              <option value="pink">Rosa</option>
+              <option value="green">Verde</option>
+              <option value="blue">Azul</option>
+              <option value="orange">Laranja</option>
+              <option value="purple">Roxo</option>
+            </select>
+          </div>
+          <div class="extra-panel-row">
+            <span class="extra-panel-label">✏️ Caneta:</span>
+            <button
+              id="btn-tool-pen"
+              data-testid="btn-tool-pen"
+              data-tool="pen"
+              title="Ferramenta caneta"
+            >
+              Caneta
+            </button>
+            <select id="select-pen-kind" data-testid="select-pen-kind" aria-label="Tipo da caneta">
+              <option value="pen">Caneta</option>
+              <option value="marker">Marcador</option>
+              <option value="highlighter">Marca-texto</option>
+            </select>
+            <select
+              id="select-pen-width"
+              data-testid="select-pen-width"
+              aria-label="Espessura da caneta"
+            >
+              <option value="thin">Fina</option>
+              <option value="medium" selected>Média</option>
+              <option value="thick">Grossa</option>
+            </select>
+            <input
+              id="input-pen-color"
+              data-testid="input-pen-color"
+              type="color"
+              value="#1f2937"
+              aria-label="Cor da caneta"
+              title="Cor da caneta"
+            />
+          </div>
+          <div class="extra-panel-row">
+            <span class="extra-panel-label">🧽 Borracha:</span>
+            <button
+              id="btn-tool-eraser"
+              data-testid="btn-tool-eraser"
+              data-tool="eraser"
+              title="Ferramenta borracha"
+            >
+              Borracha
+            </button>
+            <select
+              id="select-eraser-size"
+              data-testid="select-eraser-size"
+              aria-label="Tamanho da borracha"
+            >
+              <option value="thin">Fina</option>
+              <option value="medium" selected>Média</option>
+              <option value="thick">Grossa</option>
+            </select>
+          </div>
+          <div class="extra-panel-row">
+            <span class="extra-panel-label">💾 Persistência & I/O:</span>
+            <div class="btn-group">
+              <button
+                id="btn-save-now"
+                data-testid="btn-save-now"
+                title="Salvar agora no IndexedDB"
+              >
+                Salvar Agora
+              </button>
+              <button
+                id="btn-load-saved"
+                data-testid="btn-load-saved"
+                title="Carregar documento do IndexedDB"
+              >
+                Carregar Salvo
+              </button>
+              <button
+                id="btn-reset-doc"
+                data-testid="btn-reset-doc"
+                title="Resetar documento para fixture padrão"
+              >
+                Resetar Padrão
+              </button>
+            </div>
+            <div id="autosave-info" data-testid="autosave-info" class="status-pill">
+              💾 Autosave: Pronto
+            </div>
+          </div>
+          <div class="extra-panel-row">
+            <span class="extra-panel-label">👥 Colaboração Real:</span>
+            <div class="btn-group">
+              <button
+                id="btn-toggle-collab"
+                data-testid="btn-toggle-collab"
+                title="Alternar colaboração online/offline"
+              >
+                Colaboração: Pausada
+              </button>
+              <button
+                id="btn-open-tab"
+                data-testid="btn-open-tab"
+                title="Abrir nova aba para testar colaboração em tempo real"
+              >
+                ➕ Abrir Nova Aba
+              </button>
+            </div>
+            <div id="collab-info" data-testid="collab-info" class="status-pill">
+              👥 Colab: Desconectado
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="shell-toolbar"
+        id="shell-toolbar"
+        data-testid="shell-toolbar"
+        role="toolbar"
+        aria-label="Ferramentas do canvas"
+      >
+        <!-- Layout de ilhas: duas áreas (controle e formas) com ghost islands abertas por hover. O
+             layout clássico mostra os mesmos botões soltos, sem botões de grupo (ver o CSS). -->
+        <div class="tool-area btn-group" id="area-control" role="group" aria-label="Controle">
+          <button
+            type="button"
+            id="btn-tool-select"
+            data-testid="btn-tool-select"
+            title="Ferramenta de seleção (V)"
+          >
+            <svg
+              class="btn-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M5 3l14 7.5-6.2 1.6L10 18.5z" /></svg
+            ><span class="btn-label">Seleção</span>
+          </button>
+          <button
+            type="button"
+            id="btn-tool-hand"
+            data-testid="btn-tool-hand"
+            title="Ferramenta de mão para pan (H)"
+          >
+            <svg
+              class="btn-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5V4a1.5 1.5 0 0 1 3 0v6.5M14 10.5V5.5a1.5 1.5 0 0 1 3 0V12M17 12V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1.5a6 6 0 0 1-4.6-2.2L4 15.5a1.5 1.5 0 0 1 2.3-1.9L8 15.5"
+              /></svg
+            ><span class="btn-label">Mão</span>
+          </button>
+        </div>
+        <div class="shell-toolbar-separator area-separator" role="separator"></div>
+        <div class="tool-area" id="area-shapes" role="group" aria-label="Formas">
+          <div class="island-group" data-island="figures">
+            <button
+              type="button"
+              id="btn-group-figures"
+              data-testid="btn-group-figures"
+              class="group-button"
+              data-action="open-shapes"
+              data-tool="rectangle"
+              title="Figuras"
+              aria-label="Figuras: Retângulo"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="figures-island"
+            >
+              <svg
+                class="btn-icon"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <rect x="3.5" y="3.5" width="7" height="7" rx="1" />
+                <circle cx="17" cy="7" r="3.5" />
+                <path d="M7 20.5l3.5-7h-7z" />
+                <path d="M14 20l6-6M15.5 14h4.5v4.5" />
+              </svg>
+            </button>
+            <div
+              class="ghost-island"
+              id="figures-island"
+              data-testid="figures-island"
+              data-columns="4"
+              aria-label="Figuras"
+            >
+              <fieldset id="shapes-group" class="shapes-group" data-testid="shapes-group">
+                <legend>Formas</legend>
+                <button
+                  type="button"
+                  id="btn-tool-rect"
+                  data-testid="btn-tool-rect"
+                  data-tool="rectangle"
+                  title="Ferramenta retângulo (R)"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <rect x="3" y="6" width="18" height="12" rx="1" /></svg
+                  ><span class="btn-label">Retângulo</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-square"
+                  data-testid="btn-tool-square"
+                  data-tool="square"
+                  title="Ferramenta quadrado"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <rect x="5" y="5" width="14" height="14" rx="1" /></svg
+                  ><span class="btn-label">Quadrado</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-ellipse"
+                  data-testid="btn-tool-ellipse"
+                  data-tool="ellipse"
+                  title="Ferramenta elipse (O)"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <ellipse cx="12" cy="12" rx="9" ry="6" /></svg
+                  ><span class="btn-label">Elipse</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-circle"
+                  data-testid="btn-tool-circle"
+                  data-tool="circle"
+                  title="Ferramenta círculo"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <circle cx="12" cy="12" r="8" /></svg
+                  ><span class="btn-label">Círculo</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-diamond"
+                  data-testid="btn-tool-diamond"
+                  data-tool="diamond"
+                  title="Ferramenta losango"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M12 3l9 9-9 9-9-9z" /></svg
+                  ><span class="btn-label">Losango</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-triangle"
+                  data-testid="btn-tool-triangle"
+                  data-tool="triangle"
+                  title="Ferramenta triângulo"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M12 4l9 16H3z" /></svg
+                  ><span class="btn-label">Triângulo</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-polygon"
+                  data-testid="btn-tool-polygon"
+                  data-tool="polygon"
+                  title="Ferramenta polígono"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      d="M12 3.4L19.04 6.79L20.77 14.4L15.9 20.51L8.1 20.51L3.23 14.4L4.96 6.79z"
+                    /></svg
+                  ><span class="btn-label">Polígono</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-pentagon"
+                  data-testid="btn-tool-pentagon"
+                  data-tool="pentagon"
+                  title="Ferramenta pentágono"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M12 3.8L20.56 10.02L17.29 20.08L6.71 20.08L3.44 10.02z" /></svg
+                  ><span class="btn-label">Pentágono</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-hexagon"
+                  data-testid="btn-tool-hexagon"
+                  data-tool="hexagon"
+                  title="Ferramenta hexágono"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M12 3L19.79 7.5L19.79 16.5L12 21L4.21 16.5L4.21 7.5z" /></svg
+                  ><span class="btn-label">Hexágono</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-octagon"
+                  data-testid="btn-tool-octagon"
+                  data-tool="octagon"
+                  title="Ferramenta octógono"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      d="M15.44 3.69L20.31 8.56L20.31 15.44L15.44 20.31L8.56 20.31L3.69 15.44L3.69 8.56L8.56 3.69z"
+                    /></svg
+                  ><span class="btn-label">Octógono</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-cross"
+                  data-testid="btn-tool-cross"
+                  data-tool="cross"
+                  title="Ferramenta cruz"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" /></svg
+                  ><span class="btn-label">Cruz</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-chevron"
+                  data-testid="btn-tool-chevron"
+                  data-tool="chevron"
+                  title="Ferramenta chevron"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M4 5h11l5 7-5 7H4l5-7z" /></svg
+                  ><span class="btn-label">Chevron</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-arrow"
+                  data-testid="btn-tool-arrow"
+                  data-tool="arrow"
+                  title="Ferramenta seta (A)"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M5 19L19 5M10 5h9v9" /></svg
+                  ><span class="btn-label">Seta</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-brace"
+                  data-testid="btn-tool-brace"
+                  data-tool="brace"
+                  title="Ferramenta chaves"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M16 3c-3 0-4 1-4 3v4c0 1.5-1 2-4 2 3 0 4 .5 4 2v4c0 2 1 3 4 3" /></svg
+                  ><span class="btn-label">Chaves</span>
+                </button>
+              </fieldset>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="btn-tool-text"
+            data-testid="btn-tool-text"
+            title="Ferramenta texto (T)"
+          >
+            <svg
+              class="btn-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M5 7V4h14v3M12 4v16M9 20h6" /></svg
+            ><span class="btn-label">Texto</span>
+          </button>
+          <div class="island-group" data-island="sticky">
+            <button
+              type="button"
+              id="btn-group-sticky"
+              data-testid="btn-group-sticky"
+              class="group-button"
+              data-action="open-sticky-colors"
+              data-tool="sticky"
+              title="Nota adesiva"
+              aria-label="Nota adesiva"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="sticky-island"
+            >
+              <svg
+                class="btn-icon"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M5 4h14v10l-6 6H5zM13 20v-6h6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              id="btn-tool-sticky"
+              data-testid="btn-tool-sticky"
+              data-tool="sticky"
+              title="Ferramenta nota adesiva"
+            >
+              <svg
+                class="btn-icon"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M5 4h14v10l-6 6H5zM13 20v-6h6" /></svg
+              ><span class="btn-label">Nota adesiva</span>
+            </button>
+            <div
+              class="ghost-island"
+              id="sticky-island"
+              data-testid="sticky-island"
+              data-columns="3"
+              aria-label="Cor da nota"
+            >
+              <div class="island-items">
+                <button
+                  type="button"
+                  class="swatch-button"
+                  data-testid="sticky-swatch-yellow"
+                  data-color="yellow"
+                  title="Amarelo"
+                  aria-label="Amarelo"
+                >
+                  <span class="swatch" data-swatch="yellow"></span>
+                </button>
+                <button
+                  type="button"
+                  class="swatch-button"
+                  data-testid="sticky-swatch-pink"
+                  data-color="pink"
+                  title="Rosa"
+                  aria-label="Rosa"
+                >
+                  <span class="swatch" data-swatch="pink"></span>
+                </button>
+                <button
+                  type="button"
+                  class="swatch-button"
+                  data-testid="sticky-swatch-green"
+                  data-color="green"
+                  title="Verde"
+                  aria-label="Verde"
+                >
+                  <span class="swatch" data-swatch="green"></span>
+                </button>
+                <button
+                  type="button"
+                  class="swatch-button"
+                  data-testid="sticky-swatch-blue"
+                  data-color="blue"
+                  title="Azul"
+                  aria-label="Azul"
+                >
+                  <span class="swatch" data-swatch="blue"></span>
+                </button>
+                <button
+                  type="button"
+                  class="swatch-button"
+                  data-testid="sticky-swatch-orange"
+                  data-color="orange"
+                  title="Laranja"
+                  aria-label="Laranja"
+                >
+                  <span class="swatch" data-swatch="orange"></span>
+                </button>
+                <button
+                  type="button"
+                  class="swatch-button"
+                  data-testid="sticky-swatch-purple"
+                  data-color="purple"
+                  title="Roxo"
+                  aria-label="Roxo"
+                >
+                  <span class="swatch" data-swatch="purple"></span>
+                </button>
+                <button
+                  type="button"
+                  class="wide-button"
+                  id="btn-sticky-custom"
+                  data-testid="btn-sticky-custom"
+                  data-action="custom-sticky-color"
+                >
+                  Personalizada
+                </button>
+              </div>
+              <input
+                type="color"
+                id="input-sticky-custom"
+                data-testid="input-sticky-custom"
+                class="visually-hidden"
+                tabindex="-1"
+                aria-hidden="true"
+                value="#fde68a"
+              />
+            </div>
+          </div>
+          <div class="island-group" data-island="draw">
+            <button
+              type="button"
+              id="btn-group-draw"
+              data-testid="btn-group-draw"
+              class="group-button"
+              data-action="open-draw"
+              data-tool="bezier"
+              title="Desenho"
+              aria-label="Desenho: Bézier"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="draw-island"
+            >
+              <svg
+                class="btn-icon"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3" />
+              </svg>
+            </button>
+            <div
+              class="ghost-island"
+              id="draw-island"
+              data-testid="draw-island"
+              data-columns="4"
+              aria-label="Desenho"
+            >
+              <div class="island-items">
+                <button
+                  type="button"
+                  id="btn-tool-line"
+                  data-testid="btn-tool-line"
+                  data-tool="line"
+                  title="Ferramenta linha (L)"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M5 19L19 5" /></svg
+                  ><span class="btn-label">Linha</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-tool-bezier"
+                  data-testid="btn-tool-bezier"
+                  data-tool="bezier"
+                  title="Ferramenta curva Bézier"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M4 18C8 4 16 20 20 6" /></svg
+                  ><span class="btn-label">Bézier</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-island-pen"
+                  data-testid="btn-island-pen"
+                  class="shell-only"
+                  data-tool="pen"
+                  data-proxy="btn-tool-pen"
+                  title="Tinta (caneta)"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3" /></svg
+                  ><span class="btn-label">Tinta</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-island-eraser"
+                  data-testid="btn-island-eraser"
+                  class="shell-only"
+                  data-tool="eraser"
+                  data-proxy="btn-tool-eraser"
+                  title="Borracha"
+                >
+                  <svg
+                    class="btn-icon"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M16 4l5 5-10 10H6l-3-3zM9 8l7 7M11 19h10" /></svg
+                  ><span class="btn-label">Borracha</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="btn-tool-board"
+            data-testid="btn-tool-board"
+            data-tool="board"
+            title="Ferramenta Board"
+            aria-label="Board"
+            aria-pressed="false"
+          >
+            <svg
+              class="btn-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect x="3" y="8" width="18" height="12" rx="1" />
+              <path d="M3 8V4.5h8V8" /></svg
+            ><span class="btn-label">Board</span>
+          </button>
+        </div>
+        <div class="shell-toolbar-separator area-separator" role="separator"></div>
+        <div
+          class="tool-area island-group properties-area"
+          id="area-properties"
+          role="group"
+          aria-label="Propriedades"
+        >
+          <button
+            type="button"
+            id="btn-properties"
+            data-testid="btn-properties"
+            class="shell-only"
+            data-action="properties"
+            title="Selecione uma ou mais formas"
+            aria-label="Propriedades"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="properties-panel"
+            disabled
+          >
+            <svg
+              class="btn-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+              <circle cx="16" cy="7" r="2" />
+              <circle cx="8" cy="17" r="2" />
+            </svg>
+          </button>
+          <div
+            id="properties-panel"
+            class="properties-panel"
+            data-testid="properties-panel"
+            hidden
+            role="dialog"
+            aria-label="Propriedades"
+          >
+            <div class="extra-panel-row" id="selection-panel" data-testid="selection-panel">
+              <span class="extra-panel-label">📐 Seleção & Tipo:</span>
+              <div id="selection-type-info" data-testid="selection-type-info" class="status-pill">
+                Seleção: nenhuma
+              </div>
+              <div class="btn-group">
+                <button
+                  id="btn-convert-type"
+                  data-testid="btn-convert-type"
+                  data-action="convert-type"
+                  title="Converter entre Retângulo e Quadrado"
+                  disabled
+                >
+                  Converter Tipo
+                </button>
+                <select
+                  id="select-triangle-variant"
+                  data-testid="select-triangle-variant"
+                  data-field="variant"
+                  aria-label="Variante"
+                  hidden
+                >
+                  <option value="isosceles">Isósceles</option>
+                  <option value="equilateral">Equilátero</option>
+                  <option value="right">Retângulo</option>
+                  <option value="scalene">Escaleno</option>
+                </select>
+                <input
+                  id="input-triangle-apex"
+                  data-testid="input-triangle-apex"
+                  data-field="apex"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  aria-label="Ápice"
+                  style="width: 64px"
+                  hidden
+                />
+                <input
+                  id="input-polygon-sides"
+                  data-testid="input-polygon-sides"
+                  data-field="sides"
+                  type="number"
+                  min="3"
+                  max="12"
+                  step="1"
+                  aria-label="Lados"
+                  style="width: 64px"
+                  hidden
+                />
+                <input
+                  id="input-cross-arm-ratio"
+                  data-testid="input-cross-arm-ratio"
+                  data-field="armRatio"
+                  type="number"
+                  min="0.05"
+                  max="1"
+                  step="0.05"
+                  aria-label="Espessura dos braços"
+                  style="width: 64px"
+                  hidden
+                />
+                <select
+                  id="select-chevron-direction"
+                  data-testid="select-chevron-direction"
+                  data-field="direction"
+                  aria-label="Direção"
+                  hidden
+                >
+                  <option value="right">Direita</option>
+                  <option value="left">Esquerda</option>
+                  <option value="up">Cima</option>
+                  <option value="down">Baixo</option>
+                </select>
+                <input
+                  id="input-chevron-notch-depth"
+                  data-testid="input-chevron-notch-depth"
+                  data-field="notchDepth"
+                  type="number"
+                  min="0"
+                  max="0.5"
+                  step="0.05"
+                  aria-label="Profundidade da ponta"
+                  style="width: 64px"
+                  hidden
+                />
+                <select
+                  id="select-brace-orientation"
+                  data-testid="select-brace-orientation"
+                  data-field="orientation"
+                  aria-label="Orientação"
+                  hidden
+                >
+                  <option value="left">Esquerda</option>
+                  <option value="right">Direita</option>
+                  <option value="up">Cima</option>
+                  <option value="down">Baixo</option>
+                </select>
+                <input
+                  id="input-brace-tip-position"
+                  data-testid="input-brace-tip-position"
+                  data-field="tipPosition"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  aria-label="Posição da ponta"
+                  style="width: 64px"
+                  hidden
+                />
+                <input
+                  id="input-brace-curvature"
+                  data-testid="input-brace-curvature"
+                  data-field="curvature"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  aria-label="Curvatura"
+                  style="width: 64px"
+                  hidden
+                />
+                <select
+                  id="prop-sticky-color"
+                  data-testid="prop-sticky-color"
+                  data-field="sticky-color"
+                  aria-label="Cor da nota selecionada"
+                  hidden
+                >
+                  <option value="yellow">Amarelo</option>
+                  <option value="pink">Rosa</option>
+                  <option value="green">Verde</option>
+                  <option value="blue">Azul</option>
+                  <option value="orange">Laranja</option>
+                  <option value="purple">Roxo</option>
+                  <option value="custom" disabled>Personalizada</option>
+                </select>
+                <select
+                  id="prop-font-size"
+                  data-testid="prop-font-size"
+                  data-field="fontSize"
+                  aria-label="Tamanho da fonte"
+                  hidden
+                ></select>
+                <label id="label-bezier-symmetric" hidden>
+                  <input
+                    id="input-bezier-symmetric"
+                    data-testid="input-bezier-symmetric"
+                    data-field="symmetric"
+                    type="checkbox"
+                    aria-label="Simétrica"
+                  />
+                  Simétrica
+                </label>
+              </div>
+            </div>
+            <div
+              class="extra-panel-row label-section"
+              id="label-section"
+              data-testid="label-section"
+              role="group"
+              aria-labelledby="label-section-title"
+              hidden
+            >
+              <span class="extra-panel-label" id="label-section-title">Texto na forma</span>
+              <div class="label-field">
+                <span class="label-field-name" id="label-vertical-align-name">Posição</span>
+                <div
+                  class="label-radios"
+                  role="radiogroup"
+                  data-field="label-vertical-align"
+                  aria-labelledby="label-vertical-align-name"
+                >
+                  <button type="button" role="radio" data-value="top" aria-checked="false">
+                    Topo
+                  </button>
+                  <button type="button" role="radio" data-value="middle" aria-checked="false">
+                    Centro
+                  </button>
+                  <button type="button" role="radio" data-value="bottom" aria-checked="false">
+                    Base
+                  </button>
+                </div>
+              </div>
+              <div class="label-field">
+                <span class="label-field-name" id="label-align-name">Alinhamento</span>
+                <div
+                  class="label-radios"
+                  role="radiogroup"
+                  data-field="label-align"
+                  aria-labelledby="label-align-name"
+                >
+                  <button type="button" role="radio" data-value="left" aria-checked="false">
+                    Esquerda
+                  </button>
+                  <button type="button" role="radio" data-value="center" aria-checked="false">
+                    Centro
+                  </button>
+                  <button type="button" role="radio" data-value="right" aria-checked="false">
+                    Direita
+                  </button>
+                </div>
+              </div>
+              <div class="label-field">
+                <label class="label-field-name" for="label-font-size">Tamanho do texto</label>
+                <select id="label-font-size" data-field="labelFontSize"></select>
+              </div>
+              <div class="label-field">
+                <button
+                  type="button"
+                  class="label-toggle"
+                  data-field="label-bold"
+                  aria-pressed="false"
+                  style="font-weight: bold"
+                >
+                  Negrito
+                </button>
+              </div>
+              <div class="label-field">
+                <label class="label-field-name" for="label-color">Cor do texto</label>
+                <div class="label-color-row">
+                  <input id="label-color" type="color" data-field="label-color" />
+                  <span class="status-pill" data-field="label-color-value"></span>
+                  <button
+                    type="button"
+                    class="label-toggle"
+                    data-field="label-color-auto"
+                    aria-pressed="false"
+                  >
+                    Automática
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div
+              class="extra-panel-row label-section"
+              id="board-section"
+              data-testid="board-section"
+              part="section-board"
+              role="group"
+              aria-labelledby="board-section-title"
+              hidden
+            >
+              <span class="extra-panel-label" id="board-section-title">Board</span>
+              <div class="label-field" data-field="board-title-row">
+                <label class="label-field-name" for="board-title">Título</label>
+                <input
+                  id="board-title"
+                  type="text"
+                  maxlength="200"
+                  part="input-board-title"
+                  data-property="board-title"
+                />
+              </div>
+              <div class="label-field">
+                <label class="label-field-name" for="board-fill">Fundo</label>
+                <div class="label-color-row">
+                  <input
+                    id="board-fill"
+                    type="color"
+                    part="input-board-fill"
+                    data-field="board-fill"
+                  />
+                  <span class="status-pill" data-field="board-fill-value"></span>
+                  <button
+                    type="button"
+                    class="label-toggle"
+                    part="button-board-fill-none"
+                    data-field="board-fill-none"
+                    aria-label="Fundo: Nenhum"
+                    aria-pressed="false"
+                  >
+                    Nenhum
+                  </button>
+                </div>
+              </div>
+              <div class="label-field">
+                <label class="label-field-name" for="board-fill-opacity">Opacidade do fundo</label>
+                <input
+                  id="board-fill-opacity"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="5"
+                  part="input-board-fill-opacity"
+                  data-property="board-fill-opacity"
+                />
+              </div>
+              <div class="label-field">
+                <label class="label-field-name" for="board-stroke">Borda</label>
+                <div class="label-color-row">
+                  <input
+                    id="board-stroke"
+                    type="color"
+                    part="input-board-stroke"
+                    data-field="board-stroke"
+                  />
+                  <span class="status-pill" data-field="board-stroke-value"></span>
+                  <button
+                    type="button"
+                    class="label-toggle"
+                    part="button-board-stroke-none"
+                    data-field="board-stroke-none"
+                    aria-label="Borda: Nenhum"
+                    aria-pressed="false"
+                  >
+                    Nenhum
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="shell-toolbar-separator" role="separator"></div>
+        <button
+          type="button"
+          id="btn-playground"
+          data-testid="btn-playground"
+          class="playground-button"
+          aria-label="Playground"
+          aria-controls="playground-panel"
+          aria-expanded="false"
+          popovertarget="playground-panel"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+            <circle cx="16" cy="7" r="2" />
+            <circle cx="8" cy="17" r="2" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="canvas-wrap">
+        <div id="canvas-container" data-testid="canvas-container"></div>
+        <div
+          id="selection-menu"
+          class="selection-menu"
+          data-testid="selection-menu"
+          role="toolbar"
+          aria-label="Ações da seleção"
+          hidden
+        >
+          <button
+            type="button"
+            id="btn-selection-front"
+            data-testid="btn-selection-front"
+            data-action="bring-to-front"
+            aria-label="Trazer para frente"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect x="3" y="3" width="11" height="11" rx="1.5" />
+              <path d="M10 21h9a2 2 0 0 0 2-2v-9" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            id="btn-selection-back"
+            data-testid="btn-selection-back"
+            data-action="send-to-back"
+            aria-label="Enviar para trás"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect x="10" y="10" width="11" height="11" rx="1.5" />
+              <path d="M14 3H5a2 2 0 0 0-2 2v9" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            id="btn-selection-delete"
+            data-testid="btn-selection-delete"
+            data-action="delete"
+            aria-label="Excluir"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"
+              />
+            </svg>
+          </button>
+        </div>
+        <template id="selection-menu-group-actions">
+          <button
+            type="button"
+            id="btn-selection-group"
+            data-testid="btn-selection-group"
+            data-action="group"
+            aria-label="Agrupar"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"
+              />
+              <rect x="7" y="7" width="6" height="6" rx="1" />
+              <rect x="11" y="11" width="6" height="6" rx="1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            id="btn-selection-ungroup"
+            data-testid="btn-selection-ungroup"
+            data-action="ungroup"
+            aria-label="Desagrupar"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect x="3" y="3" width="8" height="8" rx="1.5" />
+              <rect x="13" y="13" width="8" height="8" rx="1.5" />
+              <path d="M15 3h4a2 2 0 0 1 2 2v4M3 15v4a2 2 0 0 0 2 2h4" stroke-dasharray="2 2" />
+            </svg>
+          </button>
+        </template>
+        <template id="selection-menu-export-board">
+          <button
+            type="button"
+            id="btn-selection-export-board"
+            data-testid="btn-selection-export-board"
+            data-action="export-board"
+            aria-label="Exportar board"
+            title="Exportar board"
+            aria-haspopup="menu"
+            aria-expanded="false"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M12 7v8M8.5 11.5 12 15l3.5-3.5M8 18h8" />
+            </svg>
+          </button>
+          <div
+            id="selection-export-board-menu"
+            class="export-board-menu"
+            data-testid="selection-export-board-menu"
+            role="menu"
+            aria-label="Opções de exportação do board"
+            hidden
+          >
+            <button
+              type="button"
+              id="btn-selection-export-board-svg"
+              data-testid="btn-selection-export-board-svg"
+              role="menuitem"
+              data-format="svg"
+              aria-label="Exportar board como SVG"
+              tabindex="-1"
+            >
+              SVG
+            </button>
+            <button
+              type="button"
+              id="btn-selection-export-board-png"
+              data-testid="btn-selection-export-board-png"
+              role="menuitem"
+              data-format="png"
+              aria-label="Exportar board como PNG"
+              tabindex="-1"
+            >
+              PNG
+            </button>
+          </div>
+        </template>
+        <div id="canvas-controls" class="canvas-controls" data-testid="canvas-controls">
+          <div class="cc-pill" role="group" aria-label="Histórico">
+            <button
+              type="button"
+              id="btn-undo"
+              data-testid="btn-undo"
+              data-action="undo"
+              aria-label="Desfazer"
+              disabled
+            >
+              ↶
+            </button>
+            <button
+              type="button"
+              id="btn-redo"
+              data-testid="btn-redo"
+              data-action="redo"
+              aria-label="Refazer"
+              disabled
+            >
+              ↷
+            </button>
+          </div>
+          <div class="cc-zoom">
+            <button
+              type="button"
+              id="btn-zoom-menu"
+              data-testid="btn-zoom-menu"
+              data-action="open-zoom"
+              class="cc-zoom-button"
+              aria-label="Zoom: 100%"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="zoom-menu"
+            >
+              100%
+            </button>
+            <div id="zoom-menu" class="cc-menu" role="menu" aria-label="Opções de zoom" hidden>
+              <button type="button" role="menuitem" data-zoom="in">
+                <span>Aproximar</span><span class="cc-shortcut"></span>
+              </button>
+              <button type="button" role="menuitem" data-zoom="out">
+                <span>Afastar</span><span class="cc-shortcut"></span>
+              </button>
+              <button type="button" role="menuitem" data-zoom="reset">
+                <span>Zoom em 100%</span><span class="cc-shortcut"></span>
+              </button>
+              <button type="button" role="menuitem" data-zoom="fit">
+                <span>Ajustar ao conteúdo</span><span class="cc-shortcut"></span>
+              </button>
+              <button type="button" role="menuitem" data-zoom="selection">
+                <span>Ajustar à seleção</span><span class="cc-shortcut"></span>
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="btn-help"
+            data-testid="btn-help"
+            data-action="open-help"
+            class="cc-help-button"
+            aria-label="Ajuda e atalhos"
+            aria-haspopup="dialog"
+          >
+            ?
+          </button>
+          <dialog id="help-dialog" class="cc-help" aria-labelledby="help-title">
+            <div class="cc-help-body" data-help-body>
+              <h2 id="help-title">Atalhos de teclado</h2>
+            </div>
+            <button type="button" data-action="close-help" class="cc-help-close">Fechar</button>
+          </dialog>
+        </div>
+      </div>
+    </div>
+    <div id="app-status" data-testid="app-status" role="status"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,93 @@
+{
+  "description": "Elementos de traço à mão livre: caneta e marcador no mesmo elemento, marca-texto girado com opacidade e um elemento bloqueado com um pingo. Os pontos são locais à caixa, de 0 a 1. O tipo ink foi acrescentado em 2026-10 ao schema 1, sem bump de versão.",
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc-ink",
+    "layers": [
+      {
+        "id": "main",
+        "name": "Quadro",
+        "visible": true,
+        "locked": false,
+        "childIds": ["ink-pen", "ink-highlight", "ink-dot"]
+      }
+    ],
+    "nodes": {
+      "ink-pen": {
+        "id": "ink-pen",
+        "type": "ink",
+        "x": 40,
+        "y": 40,
+        "width": 160,
+        "height": 100,
+        "rotation": 0,
+        "strokes": [
+          {
+            "points": [
+              { "x": 0.05, "y": 0.5 },
+              { "x": 0.3, "y": 0.1 },
+              { "x": 0.6, "y": 0.9 },
+              { "x": 0.95, "y": 0.5 }
+            ],
+            "color": "#1f2937",
+            "kind": "pen",
+            "width": "medium"
+          },
+          {
+            "points": [{ "x": 0.5, "y": 0.5 }],
+            "color": "#ef4444",
+            "kind": "marker",
+            "width": "thick"
+          }
+        ],
+        "visible": true,
+        "locked": false,
+        "style": { "opacity": 1 }
+      },
+      "ink-highlight": {
+        "id": "ink-highlight",
+        "type": "ink",
+        "x": 260,
+        "y": 60,
+        "width": 200,
+        "height": 40,
+        "rotation": 0.1,
+        "strokes": [
+          {
+            "points": [
+              { "x": 0, "y": 0.5 },
+              { "x": 1, "y": 0.5 }
+            ],
+            "color": "#eab30880",
+            "kind": "highlighter",
+            "width": "medium"
+          }
+        ],
+        "visible": true,
+        "locked": false,
+        "style": { "opacity": 0.8 },
+        "metadata": { "app:autor": "ana" }
+      },
+      "ink-dot": {
+        "id": "ink-dot",
+        "type": "ink",
+        "x": 80,
+        "y": 200,
+        "width": 8,
+        "height": 8,
+        "rotation": 0,
+        "strokes": [
+          {
+            "points": [{ "x": 0.5, "y": 0.5 }],
+            "color": "#3b82f6",
+            "kind": "pen",
+            "width": "thick"
+          }
+        ],
+        "visible": true,
+        "locked": true,
+        "style": { "opacity": 1 }
+      }
+    }
+  }
+}

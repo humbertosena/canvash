@@ -1,0 +1,13 @@
+packages:
+  - 'packages/*'
+  - 'examples/*'
+
+# Endurecimento de supply chain exigido pelo Semgrep.
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+
+# O esbuild (dependência do unbuild) declara um postinstall. O build foi validado sem
+# executá-lo, então o script fica negado.
+allowBuilds:
+  esbuild: false

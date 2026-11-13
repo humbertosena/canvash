@@ -1,0 +1,9 @@
+{
+  // Arquivos TypeScript fora de packages/*/src, que rodam em Node: configs da raiz e dos
+  // pacotes, scripts e tests/.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["*.ts", "scripts/**/*.ts", "tests/**/*.ts", "packages/*/*.ts"]
+}

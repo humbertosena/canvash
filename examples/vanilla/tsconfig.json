@@ -1,0 +1,17 @@
+{
+  // Exemplo de aplicação vanilla com DOM, herda strict do tsconfig.base.json.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"]
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/renderer-canvas2d" },
+    { "path": "../../packages/interaction" },
+    { "path": "../../packages/persistence" },
+    { "path": "../../packages/export" },
+    { "path": "../../packages/collaboration" },
+    { "path": "../../packages/collaboration-yjs" }
+  ]
+}

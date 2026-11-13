@@ -1,0 +1,154 @@
+{
+  "description": "Boards (spec boards): um board com um retângulo, um grupo (dois membros) e uma seta ligando os dois filhos, e um board vazio sem fundo nem borda. Os filhos ficam em childIds do board, fora de Layer.childIds. O nó board foi acrescentado em 2026-11 ao schema 1, sem bump de versão.",
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc-boards",
+    "layers": [
+      {
+        "id": "main",
+        "name": "Camada 1",
+        "visible": true,
+        "locked": false,
+        "childIds": ["free", "board-a", "board-b"]
+      }
+    ],
+    "nodes": {
+      "free": {
+        "id": "free",
+        "type": "rectangle",
+        "x": 20,
+        "y": 20,
+        "width": 80,
+        "height": 60,
+        "rotation": 0,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#1f2937",
+          "strokeWidth": 1,
+          "opacity": 1
+        }
+      },
+      "board-a": {
+        "id": "board-a",
+        "type": "board",
+        "x": 40,
+        "y": 120,
+        "width": 420,
+        "height": 260,
+        "title": "Planejamento",
+        "style": {
+          "fill": "#eff6ff",
+          "fillOpacity": 0.6,
+          "stroke": "#d4d4d8"
+        },
+        "childIds": ["card-1", "group-1", "link"],
+        "visible": true,
+        "locked": false
+      },
+      "card-1": {
+        "id": "card-1",
+        "type": "rectangle",
+        "x": 60,
+        "y": 160,
+        "width": 100,
+        "height": 70,
+        "rotation": 0,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#1f2937",
+          "strokeWidth": 1,
+          "opacity": 1
+        }
+      },
+      "group-1": {
+        "id": "group-1",
+        "type": "group",
+        "childIds": ["m1", "m2"],
+        "visible": true,
+        "locked": false
+      },
+      "m1": {
+        "id": "m1",
+        "type": "rectangle",
+        "x": 220,
+        "y": 160,
+        "width": 80,
+        "height": 60,
+        "rotation": 0,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#1f2937",
+          "strokeWidth": 1,
+          "opacity": 1
+        }
+      },
+      "m2": {
+        "id": "m2",
+        "type": "rectangle",
+        "x": 320,
+        "y": 160,
+        "width": 80,
+        "height": 60,
+        "rotation": 0,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#1f2937",
+          "strokeWidth": 1,
+          "opacity": 1
+        }
+      },
+      "link": {
+        "id": "link",
+        "type": "arrow",
+        "start": {
+          "targetId": "card-1",
+          "anchor": {
+            "x": 1,
+            "y": 0.5
+          }
+        },
+        "end": {
+          "targetId": "m1",
+          "anchor": {
+            "x": 0,
+            "y": 0.5
+          }
+        },
+        "startMarker": "none",
+        "endMarker": "arrow",
+        "visible": true,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 2,
+          "opacity": 1
+        }
+      },
+      "board-b": {
+        "id": "board-b",
+        "type": "board",
+        "x": 520,
+        "y": 120,
+        "width": 300,
+        "height": 200,
+        "title": "Vazio",
+        "style": {
+          "fill": null,
+          "fillOpacity": 0.5,
+          "stroke": null
+        },
+        "childIds": [],
+        "visible": true,
+        "locked": false
+      }
+    }
+  }
+}

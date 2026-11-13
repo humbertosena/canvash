@@ -1,0 +1,12 @@
+# Configuração do `pnpm check:secrets` (gitleaks dir .), lida automaticamente pelo gitleaks.
+# Estende as regras padrão e tira da varredura só saída gerada e ignorada pelo git, derivada de
+# fontes que continuam varridas: cobertura, bundles de build e artefatos do Playwright.
+# Aprovado pelo dono em 2026-11-03 (CONSTRAINTS.md, linha Segredos).
+# Forma singular `[allowlist]`: o 8.21+ e o 8.30 entendem; o CI fixa a mesma versão local.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Saída gerada e ignorada pelo git"
+paths = ['''(^|/)(coverage|dist|test-results|playwright-report)(/|$)''']

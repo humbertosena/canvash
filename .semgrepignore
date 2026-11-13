@@ -1,0 +1,5 @@
+# Um .semgrepignore próprio substitui os padrões do Semgrep, que deixam tests/ de fora.
+# Aqui os testes também são analisados: eles executam processos e leem caminhos do ambiente.
+node_modules/
+dist/
+coverage/

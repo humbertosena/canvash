@@ -1,0 +1,29 @@
+{
+  // Opções comuns a todos os projetos TypeScript do repositório. Cada projeto estende este
+  // arquivo e declara só o que tem de diferente.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    // Busca por índice ou por chave devolve `T | undefined`: um ID que não existe em `nodes`
+    // precisa ser tratado, não suposto.
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    // O unbuild e o Vitest transpilam arquivo por arquivo, sem ver os tipos: import ou reexport
+    // de tipo sem `type` só quebraria no build. Com isto, quebra no typecheck.
+    "verbatimModuleSyntax": true,
+
+    // Padrão sem DOM e sem @types globais: o projeto que precisa de um dos dois declara.
+    "lib": ["ES2022"],
+    "types": [],
+
+    // Project references (`tsc -b`): cada projeto emite só declarações, e quem depende dele lê
+    // essas declarações em vez de recompilar o fonte. A saída é cache e fica em
+    // node_modules/.cache, ignorado pelo git: nada é emitido na árvore versionada.
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "${configDir}",
+    "outDir": "${configDir}/node_modules/.cache/tsc"
+  }
+}

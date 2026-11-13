@@ -1,0 +1,7 @@
+{
+  // Código do core. Herda de tsconfig.base.json a lib sem DOM e `types` vazio: document,
+  // window, HTMLElement, timers e os globais de Node são erro de tipo aqui.
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

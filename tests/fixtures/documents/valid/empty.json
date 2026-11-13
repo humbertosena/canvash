@@ -1,0 +1,17 @@
+{
+  "description": "Documento mínimo: nenhum nó e uma camada vazia.",
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc",
+    "nodes": {},
+    "layers": [
+      {
+        "id": "layer-1",
+        "name": "Layer layer-1",
+        "visible": true,
+        "locked": false,
+        "childIds": []
+      }
+    ]
+  }
+}

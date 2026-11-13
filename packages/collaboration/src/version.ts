@@ -1,0 +1,1 @@
+export const COLLABORATION_VERSION = 1;

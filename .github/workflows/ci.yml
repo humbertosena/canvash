@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'fase-*'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-full:
+    name: Full Verification (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+        with:
+          version: 11.1.2
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.12'
+
+      # Mesmas versões usadas localmente (CONSTRAINTS.md, Ferramentas), com hash fixo como as actions.
+      # `shell: bash` liga o pipefail; `curl -f` falha em 404 em vez de gravar o corpo como binário.
+      - name: Install external verification tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip install semgrep==1.175.0 diff-cover==10.6.0
+          # gitleaks
+          GITLEAKS_VERSION="8.30.1"
+          GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+          curl -fsSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          sudo tar -xzf gitleaks.tar.gz -C /usr/local/bin gitleaks
+          # osv-scanner (2.x: o check:deps usa o subcomando `scan source`)
+          OSV_VERSION="v2.5.1"
+          OSV_SHA256="f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be"
+          curl -fsSL -o osv-scanner "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  osv-scanner" | sha256sum -c -
+          sudo install -m 0755 osv-scanner /usr/local/bin/osv-scanner
+          rm -f gitleaks.tar.gz osv-scanner
+          gitleaks version && osv-scanner --version && semgrep --version && diff-cover --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      - name: Build packages
+        run: pnpm build
+
+      # Num push na main, a base é o commit anterior ao push, para os checks de diff verem o intervalo
+      # inteiro; em PR, em fase-*, em before zerado e em force-push, origin/main (o
+      # scripts/diff-base.mjs recua para o primeiro pai quando a base coincide com HEAD).
+      - name: Run full check
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.before || '' }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${PUSH_BEFORE}" && "${PUSH_BEFORE}" != 0000000000000000000000000000000000000000 ]] \
+            && git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+            export CONSTRAINTS_BASE="${PUSH_BEFORE}"
+          else
+            export CONSTRAINTS_BASE=origin/main
+          fi
+          pnpm check:full

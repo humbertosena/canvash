@@ -1,0 +1,47 @@
+{
+  "name": "@canvash/collaboration-yjs",
+  "version": "0.1.0-alpha",
+  "license": "MIT",
+  "description": "Provider de colaboração CRDT em tempo real baseado em Yjs para Canvash.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "registry": "http://localhost:4873/",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.mts",
+          "default": "./dist/index.mjs"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.cts"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@canvash/collaboration": "workspace:*",
+    "@canvash/core": "workspace:*",
+    "yjs": "^13.6.33"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "prepack": "pnpm run build"
+  }
+}

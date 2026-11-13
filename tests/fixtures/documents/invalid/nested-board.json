@@ -1,0 +1,61 @@
+{
+  "description": "Um board dentro de outro board: o schema 1 só aceita boards na camada.",
+  "expected": {
+    "code": "VALIDATION_ERROR",
+    "issues": [
+      {
+        "path": ["nodes", "outer", "childIds", 0],
+        "rule": "nested-board"
+      }
+    ]
+  },
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc",
+    "layers": [
+      {
+        "id": "l1",
+        "name": "Layer l1",
+        "visible": true,
+        "locked": false,
+        "childIds": ["outer"]
+      }
+    ],
+    "nodes": {
+      "outer": {
+        "id": "outer",
+        "type": "board",
+        "x": 0,
+        "y": 0,
+        "width": 300,
+        "height": 200,
+        "title": "Fora",
+        "style": {
+          "fill": "#ffffff",
+          "fillOpacity": 1,
+          "stroke": "#d4d4d8"
+        },
+        "childIds": ["inner"],
+        "visible": true,
+        "locked": false
+      },
+      "inner": {
+        "id": "inner",
+        "type": "board",
+        "x": 20,
+        "y": 40,
+        "width": 100,
+        "height": 80,
+        "title": "Dentro",
+        "style": {
+          "fill": "#ffffff",
+          "fillOpacity": 1,
+          "stroke": "#d4d4d8"
+        },
+        "childIds": [],
+        "visible": true,
+        "locked": false
+      }
+    }
+  }
+}

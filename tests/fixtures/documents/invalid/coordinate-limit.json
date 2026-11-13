@@ -1,0 +1,43 @@
+{
+  "description": "Coordenada além de 10 milhões.",
+  "expected": {
+    "code": "LIMIT_EXCEEDED",
+    "details": {
+      "limit": "coordinate",
+      "max": 10000000,
+      "actual": 10000001
+    }
+  },
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc",
+    "nodes": {
+      "a": {
+        "id": "a",
+        "type": "rectangle",
+        "x": -10000001,
+        "y": 0,
+        "width": 10,
+        "height": 10,
+        "rotation": 0,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#000000",
+          "strokeWidth": 1,
+          "opacity": 1
+        }
+      }
+    },
+    "layers": [
+      {
+        "id": "l1",
+        "name": "Layer l1",
+        "visible": true,
+        "locked": false,
+        "childIds": ["a"]
+      }
+    ]
+  }
+}

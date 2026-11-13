@@ -1,0 +1,33 @@
+{
+  // Solução: não compila nada, só lista os projetos que `pnpm typecheck` (`tsc -b`) verifica e
+  // que o editor conhece. Cada pacote entra com dois projetos, código e testes;
+  // scripts/tsconfig-guard.mjs falha se algum faltar. `tsc --noEmit` aqui não verifica nada.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./packages/core" },
+    { "path": "./packages/core/tsconfig.test.json" },
+    { "path": "./packages/renderer-canvas2d" },
+    { "path": "./packages/renderer-canvas2d/tsconfig.test.json" },
+    { "path": "./packages/interaction" },
+    { "path": "./packages/interaction/tsconfig.test.json" },
+    { "path": "./packages/web-components" },
+    { "path": "./packages/web-components/tsconfig.test.json" },
+    { "path": "./packages/react" },
+    { "path": "./packages/react/tsconfig.test.json" },
+    { "path": "./packages/vue" },
+    { "path": "./packages/vue/tsconfig.test.json" },
+    { "path": "./packages/persistence" },
+    { "path": "./packages/persistence/tsconfig.test.json" },
+    { "path": "./packages/export" },
+    { "path": "./packages/export/tsconfig.test.json" },
+    { "path": "./packages/collaboration" },
+    { "path": "./packages/collaboration/tsconfig.test.json" },
+    { "path": "./packages/collaboration-yjs" },
+    { "path": "./packages/collaboration-yjs/tsconfig.test.json" },
+    { "path": "./examples/vanilla" },
+    { "path": "./examples/react" },
+    { "path": "./examples/vue" },
+    { "path": "./examples/web-components" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "description": "Versão de schema mais nova, com campos que esta versão não conhece.",
+  "expected": {
+    "code": "UNSUPPORTED_VERSION",
+    "details": {
+      "found": 2,
+      "supported": 1
+    }
+  },
+  "document": {
+    "schemaVersion": 2,
+    "id": "doc",
+    "pages": [],
+    "nodes": {
+      "t": {
+        "id": "t",
+        "type": "text"
+      }
+    },
+    "layers": []
+  }
+}

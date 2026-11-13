@@ -1,0 +1,106 @@
+{
+  "description": "Cruz, chevron e chaves com todos os parâmetros, em camadas diferentes, com rotação, uma chave sem traço e metadata: os tipos acrescentados em 2026-10 ao schema 1, sem bump de versão.",
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc-composite",
+    "layers": [
+      {
+        "id": "base",
+        "name": "Base",
+        "visible": true,
+        "locked": false,
+        "childIds": ["cross-1", "chevron-1"]
+      },
+      {
+        "id": "notes",
+        "name": "Anotações",
+        "visible": true,
+        "locked": false,
+        "childIds": ["brace-1", "brace-hidden-stroke"]
+      }
+    ],
+    "nodes": {
+      "cross-1": {
+        "id": "cross-1",
+        "type": "cross",
+        "x": 20,
+        "y": 30,
+        "width": 120,
+        "height": 90,
+        "rotation": 0.25,
+        "armRatio": 0.4,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#f97316",
+          "stroke": "#9a3412",
+          "strokeWidth": 2,
+          "opacity": 1
+        },
+        "metadata": {
+          "app:label": "Cruz"
+        }
+      },
+      "chevron-1": {
+        "id": "chevron-1",
+        "type": "chevron",
+        "x": 200,
+        "y": 30,
+        "width": 140,
+        "height": 80,
+        "rotation": 0,
+        "direction": "down",
+        "notchDepth": 0.35,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": null,
+          "stroke": "#1e3a8a",
+          "strokeWidth": 3,
+          "opacity": 0.8
+        }
+      },
+      "brace-1": {
+        "id": "brace-1",
+        "type": "brace",
+        "x": 400,
+        "y": 20,
+        "width": 50,
+        "height": 180,
+        "rotation": 0,
+        "orientation": "right",
+        "tipPosition": 0.3,
+        "curvature": 1,
+        "visible": true,
+        "locked": true,
+        "style": {
+          "stroke": "#7c3aed",
+          "strokeWidth": 3,
+          "opacity": 1
+        }
+      },
+      "brace-hidden-stroke": {
+        "id": "brace-hidden-stroke",
+        "type": "brace",
+        "x": 480,
+        "y": 20,
+        "width": 180,
+        "height": 50,
+        "rotation": -1.2,
+        "orientation": "up",
+        "tipPosition": 0,
+        "curvature": 0,
+        "visible": false,
+        "locked": false,
+        "style": {
+          "stroke": null,
+          "strokeWidth": 0,
+          "opacity": 1
+        }
+      }
+    },
+    "metadata": {
+      "app:title": "Formas compostas"
+    }
+  }
+}

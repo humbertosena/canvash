@@ -1,0 +1,24 @@
+{
+  "name": "@canvash/example-react",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@canvash/collaboration": "workspace:*",
+    "@canvash/collaboration-yjs": "workspace:*",
+    "@canvash/core": "workspace:*",
+    "@canvash/export": "workspace:*",
+    "@canvash/persistence": "workspace:*",
+    "@canvash/react": "workspace:*",
+    "@canvash/web-components": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "yjs": "^13.6.33"
+  }
+}

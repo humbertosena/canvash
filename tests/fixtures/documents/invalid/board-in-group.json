@@ -1,0 +1,68 @@
+{
+  "description": "Um board entre os membros de um grupo: o grupo só contém formas.",
+  "expected": {
+    "code": "VALIDATION_ERROR",
+    "issues": [
+      {
+        "path": ["nodes", "g", "childIds", 1],
+        "rule": "board-in-group"
+      }
+    ]
+  },
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc",
+    "layers": [
+      {
+        "id": "l1",
+        "name": "Layer l1",
+        "visible": true,
+        "locked": false,
+        "childIds": ["g"]
+      }
+    ],
+    "nodes": {
+      "g": {
+        "id": "g",
+        "type": "group",
+        "childIds": ["a", "b"],
+        "visible": true,
+        "locked": false
+      },
+      "a": {
+        "id": "a",
+        "type": "rectangle",
+        "x": 0,
+        "y": 0,
+        "width": 80,
+        "height": 60,
+        "rotation": 0,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#1f2937",
+          "strokeWidth": 1,
+          "opacity": 1
+        }
+      },
+      "b": {
+        "id": "b",
+        "type": "board",
+        "x": 100,
+        "y": 100,
+        "width": 200,
+        "height": 120,
+        "title": "No grupo",
+        "style": {
+          "fill": "#ffffff",
+          "fillOpacity": 1,
+          "stroke": "#d4d4d8"
+        },
+        "childIds": [],
+        "visible": true,
+        "locked": false
+      }
+    }
+  }
+}

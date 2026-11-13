@@ -1,0 +1,11 @@
+{
+  // Código do wrapper React. Herda strict de tsconfig.base.json e habilita DOM e JSX.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "jsx": "react-jsx"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
+  "references": [{ "path": "../core" }, { "path": "../web-components" }]
+}

@@ -1,0 +1,32 @@
+node_modules/
+dist/
+coverage/
+.check/
+.DS_Store
+test-results/
+playwright-report/
+
+# Pastas de planejamento e execução de tarefas não versionadas
+.claude/
+.roadmap/
+tasks/
+graphify-out/
+
+# Especificações SDD e mapa de capacidades (somente locais). O CONSTRAINTS.md é versionado:
+# o floor-guard só enxerga no diff o que está no git.
+/SPEC.md
+/SPEC-*.md
+/CAPABILITY-MAP.md
+
+# Documentação interna: specs, decisões, benchmarks e rastreabilidade
+docs/specs/
+docs/decisions/
+docs/benchmarks/
+docs/rastreabilidade.md
+
+# Instruções de agente e relatórios internos de organização
+/CLAUDE.md
+/RELATORIO-*.md
+
+# Arquivos de configuração não versionados
+

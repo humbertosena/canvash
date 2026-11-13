@@ -1,0 +1,1 @@
+export const COLLABORATION_YJS_VERSION = 1;

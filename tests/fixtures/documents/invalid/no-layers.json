@@ -1,0 +1,18 @@
+{
+  "description": "Documento sem camada.",
+  "expected": {
+    "code": "VALIDATION_ERROR",
+    "issues": [
+      {
+        "path": ["layers"],
+        "rule": "range"
+      }
+    ]
+  },
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc",
+    "nodes": {},
+    "layers": []
+  }
+}

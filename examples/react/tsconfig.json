@@ -1,0 +1,18 @@
+{
+  // Exemplo de aplicação React com DOM e JSX.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "jsx": "react-jsx"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/persistence" },
+    { "path": "../../packages/export" },
+    { "path": "../../packages/collaboration" },
+    { "path": "../../packages/collaboration-yjs" },
+    { "path": "../../packages/web-components" },
+    { "path": "../../packages/react" }
+  ]
+}

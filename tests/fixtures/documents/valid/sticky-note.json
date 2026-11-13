@@ -1,0 +1,120 @@
+{
+  "description": "Notas adesivas em modo automático e fixo, uma girada, uma de cor personalizada escura, com texto em várias linhas e uma seta vinculada a uma delas: o tipo sticky acrescentado em 2026-10 ao schema 1, sem bump de versão.",
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc-sticky",
+    "layers": [
+      {
+        "id": "main",
+        "name": "Quadro",
+        "visible": true,
+        "locked": false,
+        "childIds": ["note-auto", "note-fixed", "note-dark", "arrow-1"]
+      }
+    ],
+    "nodes": {
+      "note-auto": {
+        "id": "note-auto",
+        "type": "sticky",
+        "x": 40,
+        "y": 40,
+        "width": 200,
+        "height": 200,
+        "rotation": 0,
+        "text": "Ideias para a reunião",
+        "fontSize": 40,
+        "fontSizeMode": "auto",
+        "fontFamily": "sans-serif",
+        "fontWeight": "normal",
+        "textAlign": "left",
+        "lineHeight": 1.25,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#fff59d",
+          "stroke": null,
+          "strokeWidth": 0,
+          "opacity": 1
+        }
+      },
+      "note-fixed": {
+        "id": "note-fixed",
+        "type": "sticky",
+        "x": 300,
+        "y": 40,
+        "width": 240,
+        "height": 160,
+        "rotation": 0.15,
+        "text": "Linha um\nLinha dois",
+        "fontSize": 20,
+        "fontSizeMode": "fixed",
+        "fontFamily": "serif",
+        "fontWeight": "bold",
+        "textAlign": "center",
+        "lineHeight": 1.4,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#bbdefb",
+          "stroke": "#1e3a8a",
+          "strokeWidth": 2,
+          "opacity": 0.9
+        },
+        "metadata": {
+          "app:autor": "ana"
+        }
+      },
+      "note-dark": {
+        "id": "note-dark",
+        "type": "sticky",
+        "x": 40,
+        "y": 300,
+        "width": 180,
+        "height": 180,
+        "rotation": 0,
+        "text": "",
+        "fontSize": 120,
+        "fontSizeMode": "auto",
+        "fontFamily": "sans-serif",
+        "fontWeight": "normal",
+        "textAlign": "right",
+        "lineHeight": 1.25,
+        "visible": true,
+        "locked": true,
+        "style": {
+          "fill": "#4c1d95",
+          "stroke": null,
+          "strokeWidth": 0,
+          "opacity": 1
+        }
+      },
+      "arrow-1": {
+        "id": "arrow-1",
+        "type": "arrow",
+        "start": {
+          "targetId": "note-auto",
+          "anchor": {
+            "x": 1,
+            "y": 0.5
+          }
+        },
+        "end": {
+          "targetId": "note-fixed",
+          "anchor": {
+            "x": 0,
+            "y": 0.5
+          }
+        },
+        "startMarker": "none",
+        "endMarker": "arrow",
+        "visible": true,
+        "locked": false,
+        "style": {
+          "stroke": "#334155",
+          "strokeWidth": 2,
+          "opacity": 1
+        }
+      }
+    }
+  }
+}

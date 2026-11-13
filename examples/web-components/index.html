@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvash — Web Components</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: #f2f3f5;
+        color: #1f1f1f;
+      }
+      main {
+        position: fixed;
+        inset: 0;
+      }
+      canvas-section {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      canvas-surface {
+        width: 100%;
+        height: 100%;
+      }
+      /* Conteúdo do cartão do playground: o playground, a persistência e a colaboração. */
+      .menu-content {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        font-size: 13px;
+      }
+      .menu-content .menu-title {
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: #3f434a;
+      }
+      .menu-content .menu-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      /* As camadas ocupam o cartão da esquerda, que começa escondido. */
+      .left-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: 100%;
+      }
+      .left-stack[hidden] {
+        display: none;
+      }
+      .left-stack canvas-layers {
+        flex: 1 1 0;
+        min-height: 0;
+        width: 100%;
+        overflow: auto;
+      }
+      /* Botão do playground: no fim da toolbar vertical, abaixo do divisor. */
+      .playground-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        color: #1f1f1f;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+      }
+      .playground-button:hover,
+      .playground-button:active {
+        background: rgba(0, 0, 0, 0.06);
+      }
+      .playground-button:focus-visible {
+        outline: 2px solid #1f1f1f;
+        outline-offset: 1px;
+      }
+      .playground-button[aria-expanded='true'],
+      .playground-button[aria-expanded='true']:hover {
+        color: #ffffff;
+        background: #1f1f1f;
+        border-color: #1f1f1f;
+      }
+      /* Cartão do playground: um popover à esquerda da toolbar, centralizado na vertical. O `right`
+         e o max-width são reservas: ao abrir, o main.ts os recalcula pela largura real da toolbar. */
+      .playground-panel {
+        position: fixed;
+        inset: auto;
+        top: 50%;
+        right: calc(var(--canvash-island-margin, 16px) + 70px + 12px);
+        box-sizing: border-box;
+        width: 360px;
+        max-width: min(360px, calc(100vw - 2 * var(--canvash-island-margin, 16px) - 70px - 12px));
+        max-height: calc(100vh - 2 * var(--canvash-island-margin, 16px));
+        margin: 0;
+        padding: 12px;
+        overflow: auto;
+        color: #1f1f1f;
+        background: var(--canvash-surface-float, #ebecef);
+        border: 1px solid var(--canvash-surface-float-border, rgba(0, 0, 0, 0.06));
+        border-radius: var(--canvash-radius-card, 16px);
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        transform: translateY(-50%);
+      }
+      /* O display do .menu-content venceria o display: none do navegador para o popover fechado. */
+      .playground-panel:not(:popover-open) {
+        display: none;
+      }
+      /* Aviso passageiro logo abaixo do topo (menu, compartilhar e avatar). */
+      #app-status {
+        position: fixed;
+        top: calc(var(--canvash-island-margin, 16px) + 32px + 12px);
+        left: 50%;
+        z-index: 50;
+        max-width: calc(100vw - 32px);
+        padding: 6px 14px;
+        font-size: 13px;
+        color: #1f1f1f;
+        background: var(--canvash-surface-float, #ebecef);
+        border: 1px solid var(--canvash-surface-float-border, rgba(0, 0, 0, 0.06));
+        border-radius: 9999px;
+        box-shadow:
+          0 4px 16px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.04);
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+      #app-status:empty {
+        display: none;
+      }
+      /* Uma linha só: o texto do log muda a cada evento e não pode mudar a altura do cabeçalho. */
+      #event-log {
+        display: block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      button {
+        padding: 6px 12px;
+        font-size: 13px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        background: #ffffff;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:hover {
+        background: #f1f5f9;
+      }
+      button:active {
+        background: #e2e8f0;
+      }
+      .extra-panel-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .extra-panel-label {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #3f434a;
+        min-width: 0;
+      }
+      .btn-group {
+        display: inline-flex;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid #cbd5e1;
+      }
+      .btn-group button {
+        border: none;
+        border-right: 1px solid #cbd5e1;
+        border-radius: 0;
+      }
+      .btn-group button:last-child {
+        border-right: none;
+      }
+      .status-pill {
+        font-family: monospace;
+        font-size: 0.8125rem;
+        padding: 4px 8px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <canvas-section id="wc-shell" project-title="Canvash — Web Components">
+        <canvas-surface id="wc-canvas" aria-label="Canvash Editor"></canvas-surface>
+
+        <div slot="left" class="left-stack" id="wc-left" hidden>
+          <canvas-layers id="wc-layers"></canvas-layers>
+        </div>
+
+        <!-- Mini-menu da seleção sobre o canvas; as propriedades abrem na ilha da toolbar. -->
+        <canvas-selection-menu
+          slot="overlay"
+          id="wc-selection-menu"
+          export-board
+        ></canvas-selection-menu>
+
+        <canvas-toolbar
+          slot="toolbar"
+          id="wc-toolbar"
+          orientation="vertical"
+          hide-history
+          hide-zoom
+          compact-readonly
+        >
+          <canvas-properties slot="properties" id="wc-properties"></canvas-properties>
+          <button
+            slot="end"
+            type="button"
+            id="btn-playground"
+            class="playground-button"
+            aria-label="Playground"
+            aria-controls="playground-panel"
+            aria-expanded="false"
+            popovertarget="playground-panel"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+              <circle cx="16" cy="7" r="2" />
+              <circle cx="8" cy="17" r="2" />
+            </svg>
+          </button>
+          <!-- Playground, persistência e colaboração: o que antes morava no menu hambúrguer. -->
+          <div
+            slot="end"
+            id="playground-panel"
+            class="menu-content playground-panel"
+            popover="auto"
+            role="group"
+            aria-label="Playground"
+          >
+            <div>
+              <div class="menu-title">Playground</div>
+              <div class="menu-row">
+                <button id="btn-fit">Fit to Content</button>
+                <button id="btn-toggle-grid">Toggle Grid</button>
+                <button id="btn-toggle-readonly">Toggle Readonly</button>
+                <button id="btn-toggle-panels" data-testid="btn-toggle-panels" aria-pressed="false">
+                  Painéis: ocultos
+                </button>
+              </div>
+            </div>
+            <div>
+              <div class="menu-title">Figuras</div>
+              <div class="menu-row">
+                <button id="btn-add-rect">Add Rectangle</button>
+                <button id="btn-add-square">Add Square</button>
+                <button id="btn-add-circle">Add Circle</button>
+                <button id="btn-add-diamond">Add Diamond</button>
+                <button id="btn-add-triangle">Add Triangle</button>
+                <button id="btn-add-polygon">Add Polygon</button>
+                <button id="btn-add-pentagon">Add Pentagon</button>
+                <button id="btn-add-hexagon">Add Hexagon</button>
+                <button id="btn-add-octagon">Add Octagon</button>
+                <button id="btn-add-cross">Add Cross</button>
+                <button id="btn-add-chevron">Add Chevron</button>
+                <button id="btn-add-brace">Add Brace</button>
+                <button id="btn-add-sticky">+ Nota adesiva</button>
+                <button id="btn-add-bezier">Add Bézier</button>
+              </div>
+            </div>
+            <span id="event-log" style="font-size: 12px; color: #4b5563"
+              >Aguardando eventos...</span
+            >
+            <div>
+              <div class="menu-title">💾 Persistência & I/O</div>
+              <div class="menu-row">
+                <div class="btn-group">
+                  <button
+                    id="btn-save-now"
+                    data-testid="btn-save-now"
+                    title="Salvar agora no IndexedDB"
+                  >
+                    Salvar Agora
+                  </button>
+                  <button
+                    id="btn-load-saved"
+                    data-testid="btn-load-saved"
+                    title="Carregar documento do IndexedDB"
+                  >
+                    Carregar Salvo
+                  </button>
+                  <button
+                    id="btn-reset-doc"
+                    data-testid="btn-reset-doc"
+                    title="Resetar documento para fixture padrão"
+                  >
+                    Resetar Padrão
+                  </button>
+                </div>
+                <div id="autosave-info" data-testid="autosave-info" class="status-pill">
+                  💾 Autosave: Pronto
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="menu-title">👥 Colaboração Real</div>
+              <div class="menu-row">
+                <div class="btn-group">
+                  <button
+                    id="btn-toggle-collab"
+                    data-testid="btn-toggle-collab"
+                    title="Alternar colaboração online/offline"
+                  >
+                    Colaboração: Pausada
+                  </button>
+                  <button
+                    id="btn-open-tab"
+                    data-testid="btn-open-tab"
+                    title="Abrir nova aba para testar colaboração em tempo real"
+                  >
+                    ➕ Abrir Nova Aba
+                  </button>
+                </div>
+                <div id="collab-info" data-testid="collab-info" class="status-pill">
+                  👥 Colab: Desconectado
+                </div>
+              </div>
+            </div>
+          </div>
+        </canvas-toolbar>
+
+        <canvas-controls slot="controls" id="wc-controls"></canvas-controls>
+      </canvas-section>
+      <div id="app-status" data-testid="app-status" role="status"></div>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

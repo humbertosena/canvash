@@ -1,0 +1,66 @@
+{
+  "description": "Texto em modo automático e texto em tamanho fixo, com tamanhos da lista e fora dela: o campo fontSizeMode acrescentado em 2026-10 ao schema 1, sem bump de versão.",
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc-font-size",
+    "layers": [
+      {
+        "id": "main",
+        "name": "Principal",
+        "visible": true,
+        "locked": false,
+        "childIds": ["text-auto", "text-fixed"]
+      }
+    ],
+    "nodes": {
+      "text-auto": {
+        "id": "text-auto",
+        "type": "text",
+        "x": 20,
+        "y": 30,
+        "width": 200,
+        "height": 20,
+        "rotation": 0,
+        "text": "Automático",
+        "fontSize": 16,
+        "fontSizeMode": "auto",
+        "fontFamily": "sans-serif",
+        "fontWeight": "normal",
+        "textAlign": "left",
+        "lineHeight": 1.25,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": null,
+          "strokeWidth": 0,
+          "opacity": 1
+        }
+      },
+      "text-fixed": {
+        "id": "text-fixed",
+        "type": "text",
+        "x": 20,
+        "y": 90,
+        "width": 300,
+        "height": 60,
+        "rotation": 0.1,
+        "text": "Fixo",
+        "fontSize": 48,
+        "fontSizeMode": "fixed",
+        "fontFamily": "serif",
+        "fontWeight": "bold",
+        "textAlign": "center",
+        "lineHeight": 1.25,
+        "visible": true,
+        "locked": false,
+        "style": {
+          "fill": "#1e3a8a",
+          "stroke": null,
+          "strokeWidth": 0,
+          "opacity": 1
+        }
+      }
+    }
+  }
+}

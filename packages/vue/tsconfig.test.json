@@ -1,0 +1,14 @@
+{
+  // Testes do wrapper Vue: herda do tsconfig do pacote mais tipos de Node para Vitest.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.test.ts"],
+  "exclude": [],
+  "references": [
+    { "path": "./tsconfig.json" },
+    { "path": "../core" },
+    { "path": "../web-components" }
+  ]
+}

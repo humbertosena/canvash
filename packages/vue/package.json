@@ -1,0 +1,63 @@
+{
+  "name": "@canvash/vue",
+  "version": "0.1.0-alpha",
+  "license": "MIT",
+  "description": "Componentes e composables Vue 3 para o Canvash.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./ssr": "./src/ssr.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "registry": "http://localhost:4873/",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.mts",
+          "default": "./dist/index.mjs"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./ssr": {
+        "import": {
+          "types": "./dist/ssr.d.mts",
+          "default": "./dist/ssr.mjs"
+        },
+        "require": {
+          "types": "./dist/ssr.d.cts",
+          "default": "./dist/ssr.cjs"
+        }
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.cts"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0 || ^3.5.0"
+  },
+  "dependencies": {
+    "@canvash/core": "workspace:*",
+    "@canvash/web-components": "workspace:*"
+  },
+  "devDependencies": {
+    "vue": "^3.5.43"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "prepack": "pnpm run build"
+  }
+}

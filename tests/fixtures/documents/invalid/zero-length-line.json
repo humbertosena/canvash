@@ -1,0 +1,46 @@
+{
+  "description": "Linha cujos extremos coincidem.",
+  "expected": {
+    "code": "VALIDATION_ERROR",
+    "issues": [
+      {
+        "path": ["nodes", "l"],
+        "rule": "zero-length"
+      }
+    ]
+  },
+  "document": {
+    "schemaVersion": 1,
+    "id": "doc",
+    "nodes": {
+      "l": {
+        "id": "l",
+        "type": "line",
+        "start": {
+          "x": 1,
+          "y": 1
+        },
+        "end": {
+          "x": 1,
+          "y": 1
+        },
+        "visible": true,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 1,
+          "opacity": 1
+        }
+      }
+    },
+    "layers": [
+      {
+        "id": "l1",
+        "name": "Layer l1",
+        "visible": true,
+        "locked": false,
+        "childIds": ["l"]
+      }
+    ]
+  }
+}

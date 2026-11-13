@@ -1,0 +1,12 @@
+# Gerados
+pnpm-lock.yaml
+coverage/
+dist/
+test-results/
+playwright-report/
+
+# Markdown fica fora: o formatador reescreveria as tabelas das especificações.
+*.md
+
+# Configuração local do agente e worktrees, fora do controle de versão.
+.claude/

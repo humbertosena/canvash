@@ -1,0 +1,16 @@
+{
+  // Código de web-components. Herda opções estritas de tsconfig.base.json e habilita DOM.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    { "path": "../core" },
+    { "path": "../renderer-canvas2d" },
+    { "path": "../interaction" }
+  ]
+}

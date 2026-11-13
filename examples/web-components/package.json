@@ -1,0 +1,21 @@
+{
+  "name": "@canvash/example-web-components",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@canvash/collaboration": "workspace:*",
+    "@canvash/collaboration-yjs": "workspace:*",
+    "@canvash/core": "workspace:*",
+    "@canvash/export": "workspace:*",
+    "@canvash/persistence": "workspace:*",
+    "@canvash/web-components": "workspace:*",
+    "yjs": "^13.6.33"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@canvash/example-vanilla",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@canvash/core": "workspace:*",
+    "@canvash/renderer-canvas2d": "workspace:*",
+    "@canvash/interaction": "workspace:*",
+    "@canvash/persistence": "workspace:*",
+    "@canvash/export": "workspace:*",
+    "@canvash/collaboration": "workspace:*",
+    "@canvash/collaboration-yjs": "workspace:*",
+    "yjs": "^13.6.33"
+  }
+}

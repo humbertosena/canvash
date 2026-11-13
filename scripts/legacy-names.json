@@ -1,0 +1,1460 @@
+{
+  "fields": {
+    "old": "o nome antigo, como aparece no código (identificador, tag, evento, texto ou caminho completo)",
+    "new": "o nome que o substitui",
+    "kind": "identifier | tag | event | string | path",
+    "slice": "a fatia da renomeação que troca o nome (F1 a F7)",
+    "guard": "pending (o check:names ignora) | enforced (proíbe a palavra inteira) | type-context (proíbe só em posição de tipo) | reserved (nunca proíbe; o nome é do módulo boards)"
+  },
+  "entries": [
+    {
+      "old": "Board",
+      "new": "CanvasSectionApi",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "type-context"
+    },
+    {
+      "old": "createBoard",
+      "new": "createCanvasSection",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "CreateBoardOptions",
+      "new": "CreateCanvasSectionOptions",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "createBoardWith",
+      "new": "createCanvasSectionWith",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardDocument",
+      "new": "CanvasDocument",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardNode",
+      "new": "CanvasNode",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "reserved"
+    },
+    {
+      "old": "BoardSnapshot",
+      "new": "CanvasSnapshot",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCommand",
+      "new": "CanvasCommand",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardChange",
+      "new": "CanvasChange",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardListener",
+      "new": "CanvasListener",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardError",
+      "new": "CanvasError",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardErrorCode",
+      "new": "CanvasErrorCode",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardLimits",
+      "new": "CanvasLimits",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPeer",
+      "new": "CanvasPeer",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPeerDrag",
+      "new": "CanvasPeerDrag",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPeerView",
+      "new": "CanvasPeerView",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPreview",
+      "new": "CanvasPreview",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "board",
+      "new": "section",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "reserved"
+    },
+    {
+      "old": "newBoard",
+      "new": "newSection",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithLayers",
+      "new": "sectionWithLayers",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWith",
+      "new": "sectionWith",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "busyBoard",
+      "new": "busySection",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "setupBoardWithShapes",
+      "new": "setupSectionWithShapes",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithShapes",
+      "new": "sectionWithShapes",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "inkBoard",
+      "new": "inkSection",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithThree",
+      "new": "sectionWithThree",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithGroup",
+      "new": "sectionWithGroup",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithArrow",
+      "new": "sectionWithArrow",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithNode",
+      "new": "sectionWithNode",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "board2",
+      "new": "section2",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardDocument",
+      "new": "canvasDocument",
+      "kind": "identifier",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "The board ",
+      "new": "The canvas section ",
+      "kind": "string",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/core/src/board.ts",
+      "new": "packages/core/src/canvas-section.ts",
+      "kind": "path",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/core/src/board.test.ts",
+      "new": "packages/core/src/canvas-section.test.ts",
+      "kind": "path",
+      "slice": "F1",
+      "guard": "enforced"
+    },
+    {
+      "old": "dummyBoard",
+      "new": "dummySection",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "board1",
+      "new": "section1",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "shadowBoard",
+      "new": "shadowSection",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "unsubscribeBoard",
+      "new": "unsubscribeSection",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "sqBoard",
+      "new": "sqSection",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "pBoard",
+      "new": "pSection",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "cBoard",
+      "new": "cSection",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithRectangle",
+      "new": "sectionWithRectangle",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithBrace",
+      "new": "sectionWithBrace",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithCurve",
+      "new": "sectionWithCurve",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithCross",
+      "new": "sectionWithCross",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithChevron",
+      "new": "sectionWithChevron",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithViewport",
+      "new": "sectionWithViewport",
+      "kind": "identifier",
+      "slice": "F2",
+      "guard": "enforced"
+    },
+    {
+      "old": "bindBoardPresence",
+      "new": "bindCanvasPresence",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "BindBoardPresenceOptions",
+      "new": "BindCanvasPresenceOptions",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPresenceBinding",
+      "new": "CanvasPresenceBinding",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPresenceSession",
+      "new": "CanvasPresenceSession",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "projectYDocToBoardDocument",
+      "new": "projectYDocToCanvasDocument",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "syncBoardToYDoc",
+      "new": "syncCanvasToYDoc",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "bindBoardEvents",
+      "new": "bindCanvasEvents",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardA",
+      "new": "sectionA",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardB",
+      "new": "sectionB",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "board3",
+      "new": "section3",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "revisionsBoard1",
+      "new": "revisionsSection1",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "serverBoard",
+      "new": "serverSection",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardWithNodes",
+      "new": "sectionWithNodes",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "ownBoard",
+      "new": "ownSection",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "oldClientBoard",
+      "new": "oldClientSection",
+      "kind": "identifier",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/collaboration/src/bind-board-presence.ts",
+      "new": "packages/collaboration/src/bind-canvas-presence.ts",
+      "kind": "path",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/collaboration/src/bind-board-presence.test.ts",
+      "new": "packages/collaboration/src/bind-canvas-presence.test.ts",
+      "kind": "path",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/collaboration/src/bind-board-presence.follow.test.ts",
+      "new": "packages/collaboration/src/bind-canvas-presence.follow.test.ts",
+      "kind": "path",
+      "slice": "F3",
+      "guard": "enforced"
+    },
+    {
+      "old": "canvash-board-canvas-controls",
+      "new": "canvash-canvas-controls",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "canvash-board-canvas",
+      "new": "canvash-canvas-surface",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "canvash-board-toolbar",
+      "new": "canvash-canvas-toolbar",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "canvash-board-properties",
+      "new": "canvash-canvas-properties",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "canvash-board-layers",
+      "new": "canvash-canvas-layers",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "app-board-shell",
+      "new": "app-canvas-section",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "app-board-selection-menu",
+      "new": "app-canvas-selection-menu",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-canvas-controls",
+      "new": "canvas-controls",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-selection-menu",
+      "new": "canvas-selection-menu",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-properties",
+      "new": "canvas-properties",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-toolbar",
+      "new": "canvas-toolbar",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-canvas",
+      "new": "canvas-surface",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-layers",
+      "new": "canvas-layers",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-shell",
+      "new": "canvas-section",
+      "kind": "tag",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-ready",
+      "new": "canvas-ready",
+      "kind": "event",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-error",
+      "new": "canvas-error",
+      "kind": "event",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "board-container",
+      "new": "surface-container",
+      "kind": "string",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasControlsElement",
+      "new": "CanvasControlsElement",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardSelectionMenuElement",
+      "new": "CanvasSelectionMenuElement",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPropertiesElement",
+      "new": "CanvasPropertiesElement",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardToolbarElement",
+      "new": "CanvasToolbarElement",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasElement",
+      "new": "CanvasSurfaceElement",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardLayersElement",
+      "new": "CanvasLayersElement",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardShellElement",
+      "new": "CanvasSectionElement",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "TestableBoardCanvas",
+      "new": "TestableCanvasSurface",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "defineBoardElements",
+      "new": "defineCanvasElements",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "DefineBoardElementsOptions",
+      "new": "DefineCanvasElementsOptions",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "DEFAULT_BOARD_ELEMENTS",
+      "new": "DEFAULT_CANVAS_ELEMENTS",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardReadyEventDetail",
+      "new": "CanvasReadyEventDetail",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardErrorEventDetail",
+      "new": "CanvasErrorEventDetail",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardReadyEvent",
+      "new": "CanvasReadyEvent",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardErrorEvent",
+      "new": "CanvasErrorEvent",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "_board",
+      "new": "_section",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "_unsubscribeBoard",
+      "new": "_unsubscribeSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "_internalBoard",
+      "new": "_internalSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "_handleBoardChange",
+      "new": "_handleSectionChange",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "_detachBoard",
+      "new": "_detachSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "_attachBoard",
+      "new": "_attachSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "toolbarWithBoard",
+      "new": "toolbarWithSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "textBoard",
+      "new": "textSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "nextBoard",
+      "new": "nextSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "externalBoard",
+      "new": "externalSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "internalBoard",
+      "new": "internalSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "hostBoard",
+      "new": "hostSection",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "__boardB",
+      "new": "__sectionB",
+      "kind": "identifier",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "Ferramentas do Board",
+      "new": "Ferramentas do canvas",
+      "kind": "string",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "Board tools",
+      "new": "Canvas tools",
+      "kind": "string",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "Canvash Board",
+      "new": "Canvash Canvas",
+      "kind": "string",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasControlsProps",
+      "new": "CanvasControlsProps",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardSelectionMenuProps",
+      "new": "CanvasSelectionMenuProps",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardPropertiesProps",
+      "new": "CanvasPropertiesProps",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardToolbarProps",
+      "new": "CanvasToolbarProps",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardLayersProps",
+      "new": "CanvasLayersProps",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardShellProps",
+      "new": "CanvasSectionProps",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasProps",
+      "new": "CanvasSurfaceProps",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasHandle",
+      "new": "CanvasSurfaceHandle",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasInstance",
+      "new": "CanvasSurfaceInstance",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasComponent",
+      "new": "CanvasSurfaceComponent",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvasControls",
+      "new": "CanvasControls",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardSelectionMenu",
+      "new": "CanvasSelectionMenu",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardProperties",
+      "new": "CanvasProperties",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardToolbar",
+      "new": "CanvasToolbar",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardLayers",
+      "new": "CanvasLayers",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardShell",
+      "new": "CanvasSection",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCanvas",
+      "new": "CanvasSurface",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "useBoardSnapshot",
+      "new": "useCanvasSnapshot",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "onBoardReady",
+      "new": "onCanvasReady",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "onBoardError",
+      "new": "onCanvasError",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "handleBoardReady",
+      "new": "handleCanvasReady",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "handleBoardError",
+      "new": "handleCanvasError",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "internalBoardRef",
+      "new": "internalSectionRef",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "effectiveBoard",
+      "new": "effectiveSection",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardSource",
+      "new": "sectionSource",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardRef",
+      "new": "sectionRef",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "tempBoard",
+      "new": "tempSection",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "currentBoard",
+      "new": "currentSection",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "SSR Board",
+      "new": "SSR Canvas",
+      "kind": "string",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "activeBoard",
+      "new": "activeSection",
+      "kind": "identifier",
+      "slice": "F5",
+      "guard": "enforced"
+    },
+    {
+      "old": "getBoardSnapshot",
+      "new": "getCanvasSnapshot",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardSnapshotData",
+      "new": "CanvasSnapshotData",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "TestBoard",
+      "new": "TestCanvasSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardWindow",
+      "new": "CanvasSectionWindow",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardLike",
+      "new": "CanvasSectionLike",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "HasBoard",
+      "new": "HasCanvasSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardHolder",
+      "new": "CanvasSectionHolder",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardState",
+      "new": "CanvasSectionState",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "ReadOnlyBoard",
+      "new": "ReadOnlyCanvasSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "SimulatedBoard",
+      "new": "SimulatedCanvasSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "ToolBoard",
+      "new": "ToolSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "SelectionBoard",
+      "new": "SelectionSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "BoardCall",
+      "new": "SectionCall",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardCall",
+      "new": "sectionCall",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardAction",
+      "new": "sectionAction",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardAfterDispose",
+      "new": "sectionAfterDispose",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "hasInternalBoard",
+      "new": "hasInternalSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "canvasBoardIsB",
+      "new": "canvasSectionIsB",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "waitForBoard",
+      "new": "waitForSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "focusBoard",
+      "new": "focusSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "anyBoard",
+      "new": "anySection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "setActiveBoard",
+      "new": "setActiveSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "setNewBoard",
+      "new": "setNewSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "secondBoard",
+      "new": "secondSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "initialBoard",
+      "new": "initialSection",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "boardSwapped",
+      "new": "sectionSwapped",
+      "kind": "identifier",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "tests/e2e/helpers/board.ts",
+      "new": "tests/e2e/helpers/canvas.ts",
+      "kind": "path",
+      "slice": "F6",
+      "guard": "enforced"
+    },
+    {
+      "old": "\"board\"",
+      "new": "\"main\"",
+      "kind": "string",
+      "slice": "F6",
+      "guard": "reserved"
+    },
+    {
+      "old": "packages/react/src/BoardCanvas.test.tsx",
+      "new": "packages/react/src/CanvasSurface.test.tsx",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/react/src/BoardCanvas.tsx",
+      "new": "packages/react/src/CanvasSurface.tsx",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/react/src/useBoardSnapshot.test.tsx",
+      "new": "packages/react/src/useCanvasSnapshot.test.tsx",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/react/src/useBoardSnapshot.ts",
+      "new": "packages/react/src/useCanvasSnapshot.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/vue/src/BoardCanvas.test.ts",
+      "new": "packages/vue/src/CanvasSurface.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/vue/src/BoardCanvas.ts",
+      "new": "packages/vue/src/CanvasSurface.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/vue/src/useBoardSnapshot.test.ts",
+      "new": "packages/vue/src/useCanvasSnapshot.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/vue/src/useBoardSnapshot.ts",
+      "new": "packages/vue/src/useCanvasSnapshot.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas-controls.test.ts",
+      "new": "packages/web-components/src/canvas-controls.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas-controls.ts",
+      "new": "packages/web-components/src/canvas-controls.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-layers.peer-locks.test.ts",
+      "new": "packages/web-components/src/canvas-layers.peer-locks.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-layers.test.ts",
+      "new": "packages/web-components/src/canvas-layers.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-layers.ts",
+      "new": "packages/web-components/src/canvas-layers.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-properties-sticky.test.ts",
+      "new": "packages/web-components/src/canvas-properties-sticky.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-properties.peer-locks.test.ts",
+      "new": "packages/web-components/src/canvas-properties.peer-locks.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-properties.test.ts",
+      "new": "packages/web-components/src/canvas-properties.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-properties.ts",
+      "new": "packages/web-components/src/canvas-properties.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.browser.test.ts",
+      "new": "packages/web-components/src/canvas-section.browser.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.follow.browser.test.ts",
+      "new": "packages/web-components/src/canvas-section.follow.browser.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.follow.test.ts",
+      "new": "packages/web-components/src/canvas-section.follow.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.participants-island.browser.test.ts",
+      "new": "packages/web-components/src/canvas-section.participants-island.browser.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.participants-island.test.ts",
+      "new": "packages/web-components/src/canvas-section.participants-island.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.participants.test.ts",
+      "new": "packages/web-components/src/canvas-section.participants.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.test.ts",
+      "new": "packages/web-components/src/canvas-section.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-shell.ts",
+      "new": "packages/web-components/src/canvas-section.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-selection-menu.test.ts",
+      "new": "packages/web-components/src/canvas-selection-menu.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-selection-menu.ts",
+      "new": "packages/web-components/src/canvas-selection-menu.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas-highlight.browser.test.ts",
+      "new": "packages/web-components/src/canvas-surface-highlight.browser.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas-highlight.test.ts",
+      "new": "packages/web-components/src/canvas-surface-highlight.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas-toolbar-events.test.ts",
+      "new": "packages/web-components/src/canvas-surface-toolbar-events.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas.peer-locks.browser.test.ts",
+      "new": "packages/web-components/src/canvas-surface.peer-locks.browser.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas.test.ts",
+      "new": "packages/web-components/src/canvas-surface.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-canvas.ts",
+      "new": "packages/web-components/src/canvas-surface.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-toolbar.browser.test.ts",
+      "new": "packages/web-components/src/canvas-toolbar.browser.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-toolbar.test.ts",
+      "new": "packages/web-components/src/canvas-toolbar.test.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    },
+    {
+      "old": "packages/web-components/src/board-toolbar.ts",
+      "new": "packages/web-components/src/canvas-toolbar.ts",
+      "kind": "path",
+      "slice": "F4",
+      "guard": "enforced"
+    }
+  ]
+}
