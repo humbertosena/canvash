@@ -167,6 +167,7 @@ export class CanvasSectionElement extends LitElement {
       color: inherit;
       font: inherit;
       font-weight: 700;
+      line-height: 17px;
       text-align: left;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -188,7 +189,8 @@ export class CanvasSectionElement extends LitElement {
     /*
      * Em edição: itálico (sem negrito), fundo transparente e só uma linha embaixo, em degradê da
      * esquerda para a direita, do tom de seleção dos itens das ilhas à cor do canvas. O padding de
-     * baixo perde 1 px para a borda de 2 px não aumentar o campo.
+     * baixo perde 1 px para a borda de 2 px não aumentar o campo. A linha tem altura fixa (17 px) para
+     * os 27 px do campo não dependerem da métrica da fonte do sistema.
      */
     .title-input {
       box-sizing: border-box;
@@ -198,6 +200,7 @@ export class CanvasSectionElement extends LitElement {
       font: inherit;
       font-weight: 400;
       font-style: italic;
+      line-height: 17px;
       background: var(--canvash-title-edit-bg, transparent);
       border: 1px solid transparent;
       border-bottom-width: 2px;

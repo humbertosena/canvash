@@ -1,4 +1,4 @@
-import type { BoardNode, CanvasSectionApi, Result, ShapeNode } from '@canvash/core';
+import type { BoardNode, CanvasPeer, CanvasSectionApi, Result, ShapeNode } from '@canvash/core';
 import type { GridOptions, GridPointer } from './grid.js';
 import { paintGrid } from './grid.js';
 import type { OverlayEraserCursor, OverlayGuide, OverlayOptions } from './overlays.js';
@@ -268,12 +268,19 @@ export function mount(options: MountOptions): Result<RendererHandle, RendererErr
   const dragPreviewEnabled = options.peers?.dragPreview !== false;
   const ghostCache = createPeerGhostCache();
 
-  /** As prévias de arrasto dos participantes, já com o deslocamento de cada um. */
-  const peerGhostPaints = (zoom: number): PeerGhostPaint[] => {
+  /** Os participantes com arrasto em andamento; o cache esquece os demais. */
+  const draggingPeers = (): CanvasPeer[] => {
     const section = options.section;
     if (!dragPreviewEnabled || typeof section.getPeers !== 'function') return [];
     const dragging = section.getPeers().filter((peer) => peer.drag !== null);
     ghostCache.retain(new Set(dragging.map((peer) => peer.sessionId)));
+    return dragging;
+  };
+
+  /** As prévias de arrasto dos participantes, já com o deslocamento de cada um. */
+  const peerGhostPaints = (zoom: number): PeerGhostPaint[] => {
+    const section = options.section;
+    const dragging = draggingPeers();
     const paints: PeerGhostPaint[] = [];
     for (const peer of dragging) {
       const ghost = ghostCache.get(section, peer, zoom);
@@ -501,6 +508,9 @@ export function mount(options: MountOptions): Result<RendererHandle, RendererErr
     typeof options.section?.subscribe === 'function'
       ? options.section.subscribe((change) => {
           scheduler.invalidate();
+          // O fim de um arrasto tem de chegar ao cache mesmo que nenhum quadro seja desenhado antes
+          // do gesto seguinte; senão o gesto novo herda o "já confirmado" do anterior e some.
+          if (change.areas.includes('peers')) draggingPeers();
           if (change.areas.includes('peers') || change.areas.includes('viewport')) refreshPeers();
         })
       : () => {};

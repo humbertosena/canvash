@@ -132,6 +132,7 @@ for (const variant of VARIANTS) {
       expect(await updatesOf(a)).toBe(0);
       expect(await storedText(a)).toBe('antigo');
       expect(await textOf(b)).toBe('antigo');
+      await expect.poll(() => lockHolder(b, SHAPE.id)).not.toBeNull();
       expect(await lockHolder(b, SHAPE.id)).not.toBeNull();
 
       // Perder o foco confirma: um único update sai de A e o texto chega a B.

@@ -552,6 +552,16 @@ export async function holderColor(page: Page, id: string): Promise<string | null
   }, id);
 }
 
+/**
+ * Espera o nó ter dono e devolve a cor que a própria espera viu. Reler `holderColor` depois da espera
+ * pode pegar o lock já solto (null) e quebrar o `colorNear` adiante.
+ */
+export async function waitHolderColor(page: Page, id: string): Promise<string> {
+  let color: string | null = null;
+  await expect.poll(async () => (color = await holderColor(page, id))).not.toBeNull();
+  return color!;
+}
+
 /** O viewport do canvas e o tamanho do canvas, em CSS px, como a página os tem agora. */
 export async function viewState(page: Page): Promise<{
   viewport: { x: number; y: number; zoom: number };

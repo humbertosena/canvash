@@ -483,18 +483,19 @@ for (const variant of VARIANTS) {
       await page.mouse.move(box.x + center.x + 140, box.y + center.y, { steps: 10 });
       await clearSelectionVisual(page);
 
-      const vertical = await inkCount(page, variant, {
-        x: center.x - 4,
-        y: center.y - 22,
-        width: 8,
-        height: 44,
-      });
-      const horizontal = await inkCount(page, variant, {
-        x: center.x - 22,
-        y: center.y - 4,
-        width: 44,
-        height: 8,
-      });
+      const verticalArea = { x: center.x - 4, y: center.y - 22, width: 8, height: 44 };
+      const horizontalArea = { x: center.x - 22, y: center.y - 4, width: 44, height: 8 };
+      // A prévia gira quando o navegador pintar o frame: espera a rotação aparecer antes de medir.
+      await expect
+        .poll(
+          async () =>
+            (await inkCount(page, variant, verticalArea)) >
+            (await inkCount(page, variant, horizontalArea)),
+        )
+        .toBe(true);
+
+      const vertical = await inkCount(page, variant, verticalArea);
+      const horizontal = await inkCount(page, variant, horizontalArea);
       expect(vertical).toBeGreaterThan(horizontal);
       await page.mouse.up();
 

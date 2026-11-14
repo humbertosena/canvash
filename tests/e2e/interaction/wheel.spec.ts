@@ -63,6 +63,12 @@ test.describe('Interação: Wheel e Trackpad (Tarefa 29)', () => {
     await page.mouse.wheel(0, -100);
     await page.keyboard.up('ControlOrMeta');
 
+    // O wheel chega à página de forma assíncrona: espera o zoom mudar antes de ler o viewport.
+    await page.waitForFunction(() => {
+      const g = globalThis as unknown as PlaygroundGlobal;
+      return (g.__CANVASH_PLAYGROUND__?.section.getSnapshot().session.viewport.zoom ?? 1) > 1;
+    });
+
     const viewport = await page.evaluate(() => {
       const g = globalThis as unknown as PlaygroundGlobal;
       return g.__CANVASH_PLAYGROUND__?.section.getSnapshot().session.viewport;

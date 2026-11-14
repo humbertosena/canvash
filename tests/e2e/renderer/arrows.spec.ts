@@ -196,7 +196,12 @@ test.describe('Renderização de Setas no Canvas 2D (Tarefa 46 - INPUT-07)', () 
       section.setViewport({ x: -35000, y: -35000, zoom: 1 });
     });
 
-    await page.waitForTimeout(100);
+    // O frame novo chega quando o navegador pintar: espera a contagem chegar a 1, em vez de um
+    // tempo fixo, que no webkit sob carga lia o frame antigo.
+    await page.waitForFunction(() => {
+      const g = globalThis as unknown as PlaygroundGlobal;
+      return g.__CANVASH_PLAYGROUND__!.handle.getMetrics().renderedItemsCount === 1;
+    });
 
     // Itens da origem foram culled; apenas a seta distante é renderizada
     const metricsNear = await page.evaluate(() => {
