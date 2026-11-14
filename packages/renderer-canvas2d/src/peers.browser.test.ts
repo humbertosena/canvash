@@ -389,6 +389,21 @@ describe('prévia do arrasto remoto no canvas (navegador real)', () => {
     expect(rgba(300, 70)[3]).toBe(0);
   });
 
+  it('um gesto novo depois do commit mostra a prévia, mesmo sem quadro entre o drag nulo e ele', async () => {
+    section.setPeers([dragger()]);
+    await settle();
+    section.dispatch({ type: 'shape.update', id: 'a', patch: { x: 120 } });
+    await settle();
+
+    // O fim do gesto e o começo do seguinte chegam antes do próximo quadro.
+    section.setPeers([dragger({ drag: null })]);
+    section.setPeers([dragger({ drag: { ids: ['a'], dx: 100, dy: 0 } })]);
+    await settle();
+
+    // Nó em x = 120 com dx 100: a borda esquerda da prévia fica em x = 220.
+    expect(isRed(rgba(220, 70))).toBe(true);
+  });
+
   it('com peers.dragPreview desligado nada é desenhado', async () => {
     mountWith({ dragPreview: false });
     section.setPeers([dragger()]);
