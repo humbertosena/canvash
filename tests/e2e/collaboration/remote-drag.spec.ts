@@ -8,6 +8,7 @@ import {
   copiedLinks,
   expectNode,
   holderColor,
+  waitHolderColor,
   openCollabPage,
   openFromLink,
   peersOf,
@@ -198,7 +199,7 @@ for (const variant of VARIANTS) {
       await selectIds(a, ['texto']);
       const color = await (async () => {
         await expect.poll(() => holderColor(b, 'texto')).not.toBeNull();
-        return (await holderColor(b, 'texto'))!;
+        return waitHolderColor(b, 'texto');
       })();
 
       // Texto: contorno retangular deslocado; o texto em si não é desenhado como tal.
@@ -232,7 +233,7 @@ for (const variant of VARIANTS) {
       await expectNode(b, 'n24');
       await selectIds(a, ids);
       await expect.poll(() => holderColor(b, 'n0')).not.toBeNull();
-      const color = (await holderColor(b, 'n0'))!;
+      const color = await waitHolderColor(b, 'n0');
 
       await previewMoveMany(a, { ids, dx: 600, dy: 0 });
 

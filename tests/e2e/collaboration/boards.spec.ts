@@ -13,7 +13,7 @@ import {
   copiedLinks,
   dropNetwork,
   expectNode,
-  holderColor,
+  waitHolderColor,
   mySessionId,
   nodeIds,
   openCollabPage,
@@ -284,6 +284,11 @@ for (const variant of VARIANTS) {
       };
       await expect.poll(async () => (await ownerOn(a)).length).toBe(1);
       await expect.poll(async () => (await ownerOn(b)).length).toBe(1);
+      // Com length 1 dos dois lados o estado ainda pode ser o de antes da sincronização (cada um no
+      // próprio board): espera os dois convergirem antes de comparar.
+      await expect
+        .poll(async () => JSON.stringify(await ownerOn(a)) === JSON.stringify(await ownerOn(b)))
+        .toBe(true);
       expect(await ownerOn(a)).toEqual(await ownerOn(b));
     });
 
@@ -295,7 +300,7 @@ for (const variant of VARIANTS) {
       await selectIds(a, ['c']);
       await expect.poll(() => holderSession(b, 'c')).not.toBeNull();
       expect(await holderSession(b, 'b')).toBeNull();
-      const color = (await holderColor(b, 'c'))!;
+      const color = await waitHolderColor(b, 'c');
       // O contorno de 2 px no meio da borda esquerda do filho.
       await expect.poll(() => colorNear(b, BOARD.x + 30, BOARD.y + 40 + 30, color, 3)).toBe(true);
 
@@ -387,6 +392,7 @@ for (const variant of VARIANTS) {
       await expect.poll(() => holderSession(c, 'c')).toBe(bId);
       expect(await holderSession(a, 'c')).toBe(bId);
       expect(await holderSession(b, 'c')).toBeNull();
+      await expect.poll(() => holderSession(b, 'd')).toBe(aId);
       expect(await holderSession(b, 'd')).toBe(aId);
     });
 
@@ -397,7 +403,7 @@ for (const variant of VARIANTS) {
       await buildBoard(a, [b]);
       await selectIds(a, ['b']);
       await expect.poll(() => holderSession(b, 'c')).not.toBeNull();
-      const color = (await holderColor(b, 'c'))!;
+      const color = await waitHolderColor(b, 'c');
       const before = JSON.stringify((await snapshot(b)).document);
       const revision = (await snapshot(b)).revision;
 

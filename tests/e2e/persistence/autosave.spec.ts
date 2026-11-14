@@ -200,8 +200,12 @@ test.describe('Persistência e Autosave E2E (IO-03, IO-04)', () => {
         shape: { id: 'auto-1', type: 'rectangle', x: 5, y: 5, width: 20, height: 20, rotation: 0 },
       });
 
-      // Aguarda além do debounce para o autosave gravar
-      await new Promise((r) => setTimeout(r, 250));
+      // Aguarda o autosave gravar: debounce de 150 ms e depois o IndexedDB, que no runner lento pode
+      // passar de um tempo fixo. O limite de 5 s fica abaixo do timeout do teste.
+      const deadline = Date.now() + 5000;
+      while (manager.status !== 'saved' && manager.status !== 'error' && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
 
       const afterDebounceStatus = manager.status;
       const lastSavedRev = manager.lastSavedRevision;

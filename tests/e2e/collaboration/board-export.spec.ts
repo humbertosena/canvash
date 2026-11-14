@@ -12,6 +12,7 @@ import {
   copiedLinks,
   expectNode,
   holderColor,
+  waitHolderColor,
   openCollabPage,
   openFromLink,
   peersOf,
@@ -112,7 +113,7 @@ for (const variant of VARIANTS.filter((candidate) => WIRED.includes(candidate.na
       await b.mouse.move(600, 400);
       await expect.poll(async () => (await peersOf(a)).length).toBe(1);
       await expect.poll(() => holderColor(a, 'child')).not.toBeNull();
-      const colorOfB = (await holderColor(a, 'child'))!;
+      const colorOfB = await waitHolderColor(a, 'child');
       const nameOfB = (await peersOf(a))[0]!.name;
 
       await selectIds(a, ['ref']);
