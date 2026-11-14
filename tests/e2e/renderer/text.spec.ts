@@ -132,7 +132,12 @@ test.describe('Renderização de Texto no Canvas 2D (Tarefa 42 - RENDER-03)', ()
       section.setViewport({ x: -20000, y: -20000, zoom: 1 });
     });
 
-    await page.waitForTimeout(100);
+    // O frame novo chega quando o navegador pintar: espera a contagem chegar a 1, em vez de um
+    // tempo fixo, que no webkit sob carga lia o frame antigo.
+    await page.waitForFunction(() => {
+      const g = globalThis as unknown as PlaygroundGlobal;
+      return g.__CANVASH_PLAYGROUND__!.handle.getMetrics().renderedItemsCount === 1;
+    });
 
     // As formas da origem agora estão culled; apenas o texto em (20000, 20000) é renderizado
     const metricsNear = await page.evaluate(() => {

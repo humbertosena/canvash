@@ -64,7 +64,11 @@ async function peersOfDrag(b: Page): Promise<unknown> {
 
 async function colorOfA(a: Page, b: Page): Promise<string> {
   await expect.poll(() => holderColor(b, 'alvo')).not.toBeNull();
-  return (await holderColor(b, 'alvo'))!;
+  // Uma segunda leitura solta pode pegar o lock já liberado (null) e quebrar o `colorNear` adiante:
+  // a cor devolvida é a que a própria espera viu.
+  let color: string | null = null;
+  await expect.poll(async () => (color = await holderColor(b, 'alvo'))).not.toBeNull();
+  return color!;
 }
 
 for (const variant of VARIANTS) {
