@@ -393,7 +393,8 @@ export class PointerAdapter {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (isEditableTarget(event) || this.isSpaceOwnedByControl(event)) return;
+    // Primeiro o controle: uma tecla digitada num campo também devolve o foco ao teclado.
+    if (this.isSpaceOwnedByControl(event) || isEditableTarget(event)) return;
 
     if (event.code === 'Space' || event.key === ' ') {
       // Previne rolagem padrão da página com tecla espaço
@@ -408,8 +409,10 @@ export class PointerAdapter {
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
-    if (isEditableTarget(event)) return;
     const isSpace = event.code === 'Space' || event.key === ' ';
+    // Soltar um Space que já virou pan encerra o pan, mesmo com o foco agora num campo.
+    const releasesPan = isSpace && this.stateMachine.isSpacePressed();
+    if (isEditableTarget(event) && !releasesPan) return;
     if (isSpace && controlOf(event) !== null && !this.lastInputWasPointer) return;
 
     this.stateMachine.process({
