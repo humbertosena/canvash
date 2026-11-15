@@ -18,7 +18,19 @@ interface PinchState {
   prevDistance: number;
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
+/**
+ * O elemento que originou o evento. Na janela, um evento vindo de dentro de um Shadow DOM chega
+ * com o alvo trocado pelo dono do Shadow DOM: o elemento verdadeiro é o primeiro do caminho
+ * composto.
+ */
+function originOf(event: Event): EventTarget | null {
+  return typeof event.composedPath === 'function'
+    ? (event.composedPath()[0] ?? event.target)
+    : event.target;
+}
+
+function isEditableTarget(event: Event): boolean {
+  const target = originOf(event);
   if (!target || !(target instanceof HTMLElement)) return false;
   const tag = target.tagName.toUpperCase();
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
@@ -27,13 +39,9 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 const ACTIVATABLE_ROLES = new Set(['button', 'menuitem', 'menuitemradio', 'menuitemcheckbox']);
 
-/**
- * O controle (botão ou item de menu) que originou o evento, ou `null`. O evento chega à janela
- * com o alvo trocado pelo dono do Shadow DOM: o controle verdadeiro é o primeiro do caminho
- * composto.
- */
+/** O controle (botão ou item de menu) que originou o evento, ou `null`. */
 function controlOf(event: KeyboardEvent): HTMLElement | null {
-  const origin = typeof event.composedPath === 'function' ? event.composedPath()[0] : event.target;
+  const origin = originOf(event);
   if (!(origin instanceof HTMLElement)) return null;
   const isControl =
     origin.tagName.toUpperCase() === 'BUTTON' ||
@@ -131,7 +139,7 @@ export class PointerAdapter {
   }
 
   private readonly onDoubleClick = (event: MouseEvent): void => {
-    if (isEditableTarget(event.target)) return;
+    if (isEditableTarget(event)) return;
 
     const rect = this.element.getBoundingClientRect();
     const point = {
@@ -147,7 +155,7 @@ export class PointerAdapter {
   };
 
   private readonly onPointerDown = (event: PointerEvent): void => {
-    if (isEditableTarget(event.target)) return;
+    if (isEditableTarget(event)) return;
 
     if (event.button === 1) {
       event.preventDefault();
@@ -385,7 +393,7 @@ export class PointerAdapter {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (isEditableTarget(event.target) || this.isSpaceOwnedByControl(event)) return;
+    if (isEditableTarget(event) || this.isSpaceOwnedByControl(event)) return;
 
     if (event.code === 'Space' || event.key === ' ') {
       // Previne rolagem padrão da página com tecla espaço
@@ -400,7 +408,7 @@ export class PointerAdapter {
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
-    if (isEditableTarget(event.target)) return;
+    if (isEditableTarget(event)) return;
     const isSpace = event.code === 'Space' || event.key === ' ';
     if (isSpace && controlOf(event) !== null && !this.lastInputWasPointer) return;
 

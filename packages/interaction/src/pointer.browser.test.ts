@@ -304,6 +304,23 @@ describe('PointerAdapter e attachInteractions no navegador real (Chromium)', () 
     host.remove();
   });
 
+  it('tecla Space num campo de texto dentro de um Shadow DOM fica com o campo', () => {
+    // Como o campo de título da casca: na janela, o alvo do evento é o host, não o campo.
+    const host = document.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    const input = document.createElement('input');
+    root.appendChild(input);
+    document.body.appendChild(host);
+
+    clickSomewhere();
+    expect(pressSpace(input).defaultPrevented).toBe(false);
+    expect(container.style.cursor).toBe('auto');
+    releaseSpace(input);
+    expect(container.style.cursor).toBe('auto');
+
+    host.remove();
+  });
+
   it('depois do destroy, o clique na página não é mais observado', () => {
     handle.destroy();
     const removed = vi.spyOn(window, 'removeEventListener');
