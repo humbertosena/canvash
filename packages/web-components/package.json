@@ -1,6 +1,6 @@
 {
   "name": "@canvash/web-components",
-  "version": "0.1.0-alpha",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Componentes Web reutilizáveis (Lit) para o Canvash.",
   "type": "module",
