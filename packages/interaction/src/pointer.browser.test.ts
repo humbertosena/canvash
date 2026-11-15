@@ -358,6 +358,22 @@ describe('PointerAdapter e attachInteractions no navegador real (Chromium)', () 
     host.remove();
   });
 
+  it('soltar o Space com o foco num botão do teclado encerra o pan', () => {
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+
+    // O Space foi apertado sobre o canvas; um Tab levou o foco ao botão antes de soltar.
+    pressSpace(window);
+    expect(container.style.cursor).toBe('grab');
+    button.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Tab', key: 'Tab', bubbles: true, composed: true }),
+    );
+    releaseSpace(button);
+    expect(container.style.cursor).toBe('default');
+
+    button.remove();
+  });
+
   it('depois do destroy, o clique na página não é mais observado', () => {
     handle.destroy();
     const removed = vi.spyOn(window, 'removeEventListener');

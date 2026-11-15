@@ -410,9 +410,14 @@ export class PointerAdapter {
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     const isSpace = event.code === 'Space' || event.key === ' ';
-    // Soltar um Space que já virou pan encerra o pan, mesmo com o foco agora num campo.
+    // Soltar um Space que já virou pan encerra o pan, mesmo com o foco agora num campo ou num
+    // controle. Um controle do teclado nunca liga o pan: o keydown do Space é dele.
     const releasesPan = isSpace && this.stateMachine.isSpacePressed();
-    if (isEditableTarget(event) && !releasesPan) return;
+    if (releasesPan) {
+      this.stateMachine.process({ type: 'KEY_UP', key: event.key, code: event.code });
+      return;
+    }
+    if (isEditableTarget(event)) return;
     if (isSpace && controlOf(event) !== null && !this.lastInputWasPointer) return;
 
     this.stateMachine.process({
