@@ -304,6 +304,76 @@ describe('PointerAdapter e attachInteractions no navegador real (Chromium)', () 
     host.remove();
   });
 
+  it('tecla Space num campo de texto dentro de um Shadow DOM fica com o campo', () => {
+    // Como o campo de título da casca: na janela, o alvo do evento é o host, não o campo.
+    const host = document.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    const input = document.createElement('input');
+    root.appendChild(input);
+    document.body.appendChild(host);
+
+    clickSomewhere();
+    expect(pressSpace(input).defaultPrevented).toBe(false);
+    expect(container.style.cursor).toBe('auto');
+    releaseSpace(input);
+    expect(container.style.cursor).toBe('auto');
+
+    host.remove();
+  });
+
+  it('teclas digitadas num campo de Shadow DOM devolvem o Space ao botão focado em seguida', () => {
+    // Como confirmar o título da casca com Enter: o foco volta ao botão do título.
+    const host = document.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    const input = document.createElement('input');
+    const button = document.createElement('button');
+    root.append(input, button);
+    document.body.appendChild(host);
+
+    clickSomewhere();
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter', bubbles: true, composed: true }),
+    );
+    expect(pressSpace(button).defaultPrevented).toBe(false);
+    expect(container.style.cursor).toBe('auto');
+    releaseSpace(button);
+
+    host.remove();
+  });
+
+  it('soltar o Space com o foco num campo de Shadow DOM encerra o pan', () => {
+    const host = document.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    const input = document.createElement('input');
+    root.appendChild(input);
+    document.body.appendChild(host);
+
+    // O Space foi apertado sobre o canvas; o foco passou ao campo antes de soltar.
+    pressSpace(window);
+    expect(container.style.cursor).toBe('grab');
+    releaseSpace(input);
+    expect(container.style.cursor).toBe('default');
+    expect(handle.getState()).toBe('idle');
+
+    host.remove();
+  });
+
+  it('soltar o Space com o foco num botão do teclado encerra o pan', () => {
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+
+    // O Space foi apertado sobre o canvas; um Tab levou o foco ao botão antes de soltar.
+    pressSpace(window);
+    expect(container.style.cursor).toBe('grab');
+    button.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Tab', key: 'Tab', bubbles: true, composed: true }),
+    );
+    releaseSpace(button);
+    expect(container.style.cursor).toBe('default');
+
+    button.remove();
+  });
+
   it('depois do destroy, o clique na página não é mais observado', () => {
     handle.destroy();
     const removed = vi.spyOn(window, 'removeEventListener');

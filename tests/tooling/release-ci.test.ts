@@ -43,6 +43,12 @@ const workflowPath = fileURLToPath(new URL('../../.github/workflows/release.yml'
 const BASE = 'https://github.com/dono/canvash/releases/download/v0.1.0-alpha';
 const copies: string[] = [];
 
+// A cópia fica na versão em que estes testes foram escritos, cuja seção de CHANGELOG eles citam.
+// Sem isso, cada `pnpm version:set` de uma release nova quebraria este arquivo.
+const FIXTURE_VERSION = '0.1.0-alpha';
+const MANIFEST_VERSION_LINE = /^( {2}"version": ")[^"]*(")/m;
+const VERSION_CONSTANT_VALUE = /= '[^']*';/;
+
 // Cópia só do que a verificação lê: manifestos, `src/version.ts` e `CHANGELOG.md`.
 function copyPackages(): string {
   const root = mkdtempSync(join(tmpdir(), 'canvash-release-ci-'));
@@ -53,9 +59,17 @@ function copyPackages(): string {
     const from = join(realPackagesDir, entry.name);
     const to = join(packagesDir, entry.name);
     mkdirSync(join(to, 'src'), { recursive: true });
-    copyFileSync(join(from, 'package.json'), join(to, 'package.json'));
+    const manifest = readFileSync(join(from, 'package.json'), 'utf8');
+    writeFileSync(
+      join(to, 'package.json'),
+      manifest.replace(MANIFEST_VERSION_LINE, `$1${FIXTURE_VERSION}$2`),
+    );
     if (existsSync(join(from, 'src', 'version.ts'))) {
-      copyFileSync(join(from, 'src', 'version.ts'), join(to, 'src', 'version.ts'));
+      const constant = readFileSync(join(from, 'src', 'version.ts'), 'utf8');
+      writeFileSync(
+        join(to, 'src', 'version.ts'),
+        constant.replace(VERSION_CONSTANT_VALUE, `= '${FIXTURE_VERSION}';`),
+      );
     }
     if (existsSync(join(from, 'CHANGELOG.md'))) {
       copyFileSync(join(from, 'CHANGELOG.md'), join(to, 'CHANGELOG.md'));

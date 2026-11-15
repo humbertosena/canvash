@@ -1,6 +1,6 @@
 {
   "name": "@canvash/core",
-  "version": "0.1.0-alpha",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Motor headless do Canvash: documento, comandos, sessão e geometria.",
   "type": "module",

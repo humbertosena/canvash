@@ -1,6 +1,6 @@
 {
   "name": "@canvash/export",
-  "version": "0.1.0-alpha",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Exportação estática visual para SVG e PNG com controle de limites e segurança.",
   "type": "module",

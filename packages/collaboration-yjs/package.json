@@ -1,6 +1,6 @@
 {
   "name": "@canvash/collaboration-yjs",
-  "version": "0.1.0-alpha",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Provider de colaboração CRDT em tempo real baseado em Yjs para Canvash.",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@canvash/persistence",
-  "version": "0.1.0-alpha",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Persistência, serialização canônica, migrações e autosave para Canvash.",
   "type": "module",
