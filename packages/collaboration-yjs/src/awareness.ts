@@ -141,6 +141,8 @@ export class AwarenessManager {
       ...(remoteState.view === undefined ? {} : { view: remoteState.view }),
       ...(remoteState.avatarUrl === undefined ? {} : { avatarUrl: remoteState.avatarUrl }),
       updatedAt,
+      // A expiração conta daqui, no relógio local, e não do carimbo de quem publicou.
+      receivedAt: Date.now(),
     });
 
     // Quem chega só conhece quem se mexe: responde já com o próprio estado, para ele não esperar

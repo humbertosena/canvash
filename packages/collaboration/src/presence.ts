@@ -6,7 +6,10 @@ export function isPresenceExpired(
   timeoutMs = DEFAULT_PRESENCE_TIMEOUT_MS,
   now = Date.now(),
 ): boolean {
-  return now - presence.updatedAt > timeoutMs;
+  // Vale a chegada no relógio de quem recebe. O carimbo de quem publicou só entra quando não há
+  // registro de chegada: com relógios desalinhados, ele faria a presença sumir ao chegar ou
+  // durar além do prazo.
+  return now - (presence.receivedAt ?? presence.updatedAt) > timeoutMs;
 }
 
 export interface PresenceThrottler {

@@ -55,12 +55,22 @@ export interface RemotePresence {
   readonly cursor: { x: number; y: number } | null;
   /** IDs de nós atualmente selecionados pelo participante */
   readonly selection: readonly string[];
-  /** Instante, no relógio de quem publica, em que a seleção atual começou. Desempata bloqueios. */
+  /**
+   * Instante em que a seleção atual começou. Desempata bloqueios. Quem publica o carimba no
+   * relógio do servidor (relógio local mais o offset medido no handshake), para sessões com
+   * relógios desalinhados compararem o mesmo número.
+   */
   readonly selectedAt?: number;
   readonly drag?: PresenceDrag | null;
   readonly view?: PresenceView | null;
   readonly avatarUrl?: string;
+  /**
+   * Carimbo de quem publicou, no relógio dele. Serve só para ordenar duas mensagens da mesma
+   * sessão: não use para decidir a expiração.
+   */
   readonly updatedAt: number;
+  /** Instante da última chegada, no relógio de quem recebe. É o que decide a expiração. */
+  readonly receivedAt?: number;
 }
 
 export interface PresenceUpdate {
@@ -113,6 +123,8 @@ export interface CollaborationSession {
   readonly documentId: string;
   /** Acesso que o servidor concedeu no último handshake. */
   readonly access: RoomAccess;
+  /** Relógio do servidor menos o local, em ms, medido no último handshake. 0 sem medida. */
+  readonly serverTimeOffsetMs: number;
 
   /** Atualiza o estado efêmero de presença do usuário local com limitação de taxa (COLLAB-05). */
   updatePresence(update: PresenceUpdate): void;

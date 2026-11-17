@@ -24,10 +24,11 @@ function nodeIds(section: CanvasSectionApi): string[] {
 }
 
 /**
- * Tamanho, em bytes, do commit de um retângulo numa sessão que já editou: os limites dos testes
- * são múltiplos dele. O primeiro commit de uma sessão é maior, porque leva também as camadas.
+ * Um limite de backlog em que cabe um commit de retângulo, mas não dois. O primeiro commit de
+ * uma sessão é maior (leva também as camadas) e os tamanhos variam alguns bytes de uma execução
+ * para outra, com o identificador sorteado pelo Yjs: por isso o limite fica longe das duas bordas.
  */
-async function rectCommitBytes(): Promise<number> {
+async function limitForOneEdit(): Promise<number> {
   const server = new CollaborativeServerEmulator();
   const provider = new YjsCollaborationProvider({
     server,
@@ -40,9 +41,12 @@ async function rectCommitBytes(): Promise<number> {
   await flush();
   addRect(section, 'medida');
   await flush();
-  const bytes = server.getLog()[1]?.update.byteLength ?? 0;
+  const first = server.getLog()[0]?.update.byteLength ?? 0;
+  const later = server.getLog()[1]?.update.byteLength ?? 0;
   connected.value.destroy();
-  return bytes;
+  const limit = Math.max(Math.floor(later * 1.5), first + 32);
+  if (limit >= later * 2 - 32) throw new Error('os tamanhos medidos não deixam margem ao teste');
+  return limit;
 }
 
 async function room(maxOfflineBacklogBytes: number) {
@@ -106,8 +110,7 @@ describe('backlog cheio e reconciliação (US-P.11)', () => {
   });
 
   it('a reconciliação substitui as pendências e não leva de novo o que o servidor já tinha', async () => {
-    const oneRect = await rectCommitBytes();
-    const { server, hub, sectionA, sectionB, session } = await room(Math.floor(oneRect * 1.5));
+    const { server, hub, sectionA, sectionB, session } = await room(await limitForOneEdit());
     addRect(sectionA, 'confirmado');
     await flush();
     const before = server.getSnapshot();
@@ -168,9 +171,8 @@ describe('backlog cheio e reconciliação (US-P.11)', () => {
   it('com o enlace aberto, a reconciliação sai quando a fila esvazia', async () => {
     vi.useFakeTimers();
     vi.spyOn(Math, 'random').mockReturnValue(1 - Number.EPSILON);
-    const oneRect = await rectCommitBytes();
     const { server, hub, sectionA, sectionB, session, changes } = await room(
-      Math.floor(oneRect * 1.5),
+      await limitForOneEdit(),
     );
     addRect(sectionA, 'antes');
     await flush();

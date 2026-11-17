@@ -155,6 +155,7 @@ export class YjsCollaborationSession implements CollaborationSession {
   private halted = false;
   /** Vetor de estado do servidor no último handshake: a reconciliação parte dele. */
   private serverSyncState: Uint8Array | null;
+  private _serverTimeOffsetMs = 0;
   /** Envios à espera de resposta do servidor. `leave()` espera por eles antes de responder. */
   private readonly inFlight = new Set<Promise<unknown>>();
 
@@ -332,6 +333,9 @@ export class YjsCollaborationSession implements CollaborationSession {
     );
 
     if (this._access === 'read') this.section.setReadOnly(true);
+    if (welcome !== undefined && Number.isFinite(welcome.serverTime)) {
+      this._serverTimeOffsetMs = welcome.serverTime - Date.now();
+    }
 
     // Passa a ouvir o enlace; com o hub antigo, registra o cliente nele agora
     this.listenTo(this.transport);
@@ -363,6 +367,11 @@ export class YjsCollaborationSession implements CollaborationSession {
   /** Acesso que o servidor concedeu no último handshake. */
   get access(): RoomAccess {
     return this._access;
+  }
+
+  /** Relógio do servidor menos o local, em ms, medido no último handshake. */
+  get serverTimeOffsetMs(): number {
+    return this._serverTimeOffsetMs;
   }
 
   /** Adota o acesso do handshake: leitura põe a section em somente leitura; a volta à escrita a libera. */
@@ -594,6 +603,10 @@ export class YjsCollaborationSession implements CollaborationSession {
 
   private rememberServerState(welcome: TransportWelcome): void {
     if (welcome.serverSyncState.byteLength > 0) this.serverSyncState = welcome.serverSyncState;
+    // O erro da medida é a latência do handshake, não a diferença entre os relógios.
+    if (Number.isFinite(welcome.serverTime)) {
+      this._serverTimeOffsetMs = welcome.serverTime - Date.now();
+    }
   }
 
   /** O enlace está bom e a sessão não parou por erro fatal: dá para enviar. */
