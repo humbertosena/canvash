@@ -8,3 +8,11 @@ export type {
 } from './storage.js';
 export { createMemoryRoomStorage } from './storage-memory.js';
 export { createFileRoomStorage } from './storage-file.js';
+export { createCollaborationServer } from './server.js';
+export type {
+  CollaborationServer,
+  CollaborationServerOptions,
+  ConnectionRequest,
+  RoomStats,
+  ServerConnection,
+} from './types.js';

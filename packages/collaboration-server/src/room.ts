@@ -1,0 +1,144 @@
+import {
+  createCollaborationError,
+  err,
+  ok,
+  type CollaborationError,
+  type CommitReceipt,
+  type Result,
+  type RoomAccess,
+  type ServerMessage,
+} from '@canvash/collaboration';
+import { initYjsDocument } from '@canvash/collaboration-yjs';
+import * as Y from 'yjs';
+import type { RoomStorage, StoredRoom } from './storage.js';
+
+/** O único provider que este servidor hospeda. */
+export const SUPPORTED_PROVIDER = 'yjs';
+
+/** Um cliente dentro da sala: a conexão já passou do `hello`. */
+export interface RoomClient {
+  readonly sessionId: string;
+  readonly access: RoomAccess;
+  /** Manda uma mensagem. `false` quando a conexão não aceitou. */
+  send(message: ServerMessage): boolean;
+  /** Fecha a conexão do cliente, sem esperar por nada. */
+  close(code: number, reason: string): void;
+}
+
+export class Room {
+  readonly clients = new Map<string, RoomClient>();
+
+  constructor(
+    readonly documentId: string,
+    readonly roomEpoch: string,
+    readonly doc: Y.Doc,
+    /** `commitId` → recibo, para reenviar o mesmo `ack`. */
+    readonly receipts: Map<string, CommitReceipt>,
+  ) {}
+
+  /** Põe o cliente na sala. Devolve o que estava no lugar dele, se havia. */
+  add(client: RoomClient): RoomClient | undefined {
+    const previous = this.clients.get(client.sessionId);
+    this.clients.set(client.sessionId, client);
+    return previous;
+  }
+
+  /** Tira o cliente da sala, só se ele ainda for o dono do `sessionId`. */
+  remove(client: RoomClient): boolean {
+    if (this.clients.get(client.sessionId) !== client) return false;
+    this.clients.delete(client.sessionId);
+    return true;
+  }
+
+  /** O que falta a quem tem o estado `syncState`. Vazio vale por "nada". */
+  missingFor(syncState: Uint8Array): Result<Uint8Array, CollaborationError> {
+    try {
+      return ok(Y.encodeStateAsUpdate(this.doc, syncState.byteLength > 0 ? syncState : undefined));
+    } catch {
+      return err(
+        createCollaborationError(
+          'PROTOCOL_ERROR',
+          'O syncState não é um vetor de estado legível.',
+          {
+            reason: 'syncState',
+          },
+        ),
+      );
+    }
+  }
+
+  serverSyncState(): Uint8Array {
+    return Y.encodeStateVector(this.doc);
+  }
+}
+
+/** Reconstrói a sala guardada: snapshot, depois o log em ordem. */
+function rebuildRoom(documentId: string, stored: StoredRoom): Result<Room, CollaborationError> {
+  if (stored.provider !== SUPPORTED_PROVIDER) {
+    return err(
+      createCollaborationError(
+        'UNSUPPORTED',
+        `A sala "${documentId}" foi guardada pelo provider "${stored.provider}", e este servidor só hospeda "${SUPPORTED_PROVIDER}".`,
+        { provider: stored.provider },
+      ),
+    );
+  }
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, stored.snapshot);
+    for (const commit of stored.log) Y.applyUpdate(doc, commit.update);
+  } catch {
+    doc.destroy();
+    return err(
+      createCollaborationError(
+        'STORAGE_UNAVAILABLE',
+        `O estado guardado da sala "${documentId}" não é um estado Yjs legível.`,
+      ),
+    );
+  }
+  const receipts = new Map<string, CommitReceipt>();
+  for (const receipt of stored.receipts) receipts.set(receipt.commitId, receipt);
+  for (const commit of stored.log) receipts.set(commit.commitId, commit.receipt);
+  return ok(new Room(documentId, stored.roomEpoch, doc, receipts));
+}
+
+export interface OpenRoomOptions {
+  readonly storage: RoomStorage;
+  readonly createEpoch: () => string;
+}
+
+/**
+ * Carrega a sala do armazenamento ou, se ela não existe, cria uma vazia e a grava. Quem perde a
+ * corrida de criação (`CONFLICT`) relê a sala que o outro gravou.
+ */
+export async function openRoom(
+  documentId: string,
+  options: OpenRoomOptions,
+): Promise<Result<Room, CollaborationError>> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const loaded = await options.storage.load(documentId);
+    if (!loaded.ok) return loaded;
+    if (loaded.value !== null) return rebuildRoom(documentId, loaded.value);
+
+    // Sala nova: nunca `initYjsDocument` sobre uma sala que já existe.
+    const roomEpoch = options.createEpoch();
+    const doc = new Y.Doc();
+    initYjsDocument(doc, roomEpoch);
+    const created = await options.storage.create(documentId, {
+      provider: SUPPORTED_PROVIDER,
+      roomEpoch,
+      snapshot: Y.encodeStateAsUpdate(doc),
+      log: [],
+      receipts: [],
+    });
+    if (created.ok) return ok(new Room(documentId, roomEpoch, doc, new Map()));
+    doc.destroy();
+    if (created.error.code !== 'CONFLICT') return created;
+  }
+  return err(
+    createCollaborationError(
+      'STORAGE_UNAVAILABLE',
+      `Não foi possível abrir a sala "${documentId}": ela some e aparece entre a carga e a criação.`,
+    ),
+  );
+}
