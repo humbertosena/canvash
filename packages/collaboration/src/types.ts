@@ -112,6 +112,12 @@ export interface ConnectOptions {
    * que vier depois, inclusive o `disconnected` final de `leave()` e `destroy()`.
    */
   readonly onStatusChange?: (status: SessionStatus, error?: CollaborationError) => void;
+  /**
+   * `true` (padrão): se a sala chega vazia e a section tem nós, a sessão leva o documento local
+   * para a sala. `false`: a sessão nunca semeia; o estado da sala, mesmo vazio, substitui o
+   * documento local. O host que semeia a sala pelo servidor desliga.
+   */
+  readonly seedEmptyRoom?: boolean;
   /** Quantos recibos `getCommitReceipts()` guarda; os mais antigos saem. Padrão: 1 000. */
   readonly receiptHistoryLimit?: number;
 }

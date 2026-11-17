@@ -10,6 +10,7 @@ export {
   type YjsShapeRecord,
 } from './crdt-schema.js';
 export { projectYDocToCanvasDocument, RECOVERY_LAYER_ID } from './projection.js';
+export { encodeCanvasDocumentAsYjsState, projectYjsStateToCanvasDocument } from './seed.js';
 export { AwarenessManager, type LocalAwarenessState } from './awareness.js';
 export { createCollaborativeUndoManager, type CollaborativeUndoManager } from './undo.js';
 export {
