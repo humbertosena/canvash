@@ -111,6 +111,11 @@ export class CollaborativeServerEmulator {
     return this.roomEpoch;
   }
 
+  /** O log durável da sala, em ordem: serve para conferir que nenhum commit entrou duas vezes. */
+  getLog(): readonly LogEntry[] {
+    return [...this.log];
+  }
+
   getMissingUpdates(clientStateVector: Uint8Array): Uint8Array {
     return Y.encodeStateAsUpdate(this.ydoc, clientStateVector);
   }

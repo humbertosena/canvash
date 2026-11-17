@@ -112,6 +112,7 @@ export class YjsCollaborationSession implements CollaborationSession {
   private transport: CollaborationTransport;
   private readonly createTransport: CreateTransport | null;
   private unsubscribeInbound: (() => void) | null = null;
+  private unsubscribeState: (() => void) | null = null;
   /** Envios à espera de resposta do servidor. `leave()` espera por eles antes de responder. */
   private readonly inFlight = new Set<Promise<unknown>>();
 
@@ -365,8 +366,91 @@ export class YjsCollaborationSession implements CollaborationSession {
   }
 
   private listenTo(transport: CollaborationTransport): void {
-    this.unsubscribeInbound?.();
+    this.stopListening();
     this.unsubscribeInbound = transport.onInbound((message) => this.handleInbound(message));
+    this.unsubscribeState = transport.onStateChange((state, error) =>
+      this.handleTransportState(transport, state, error),
+    );
+  }
+
+  private stopListening(): void {
+    this.unsubscribeInbound?.();
+    this.unsubscribeInbound = null;
+    this.unsubscribeState?.();
+    this.unsubscribeState = null;
+  }
+
+  /** O enlace mudou de estado sem a sessão pedir: queda, volta ou fechamento com erro. */
+  private handleTransportState(
+    transport: CollaborationTransport,
+    state: 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed',
+    error?: CollaborationError,
+  ): void {
+    if (this.isDestroyed || transport !== this.transport) return;
+    if (state === 'reconnecting') {
+      // Commits locais seguem entrando como pendentes; a volta chega como `resync`.
+      if (this._status === 'connected') this.setStatus('reconnecting');
+      return;
+    }
+    if (state === 'closed' && error !== undefined && this._status !== 'disconnected') {
+      // Fechou com erro: handshake recusado na reconexão, protocolo ou enlace substituído.
+      this.setStatus('error', error);
+    }
+  }
+
+  /**
+   * Para de vez depois de um erro fatal: fecha o transporte e guarda documento, CRDT e pendências
+   * para o host recuperar (exportar ou `leave({ force })`).
+   */
+  private failWith(error: CollaborationError): void {
+    this.setStatus('error', error);
+    this.transport.close();
+  }
+
+  /** Aplica o que o servidor mandou como faltante e leva o resultado à section. */
+  private applyMissing(missing: Uint8Array): void {
+    if (missing.byteLength === 0) return;
+    Y.applyUpdate(this.ydoc, missing, 'remote-sync');
+    const projected = projectYDocToCanvasDocument(this.ydoc);
+    this.isApplyingRemote = true;
+    try {
+      const prevSelected = this.section.getSnapshot().session.selectedIds;
+      this.recordLostInkStrokes(this.section.getSnapshot().document.nodes, projected.nodes);
+      this.section.replaceDocument(projected);
+      const validSelected = prevSelected.filter((id) => Boolean(projected.nodes[id]));
+      if (validSelected.length > 0) {
+        this.section.setSelection(validSelected);
+      }
+      this.lastKnownDocRevision = this.section.getSnapshot().revision;
+      this.knownLocalNodeIds = new Set(Object.keys(projected.nodes));
+    } finally {
+      this.isApplyingRemote = false;
+    }
+  }
+
+  /**
+   * O enlace voltou sozinho e o `welcome` da reconexão chegou: aplica o que faltou, reenvia as
+   * pendências pelo mesmo `commitId` e só então volta a `connected`.
+   */
+  private async handleResync(welcome: TransportWelcome): Promise<void> {
+    const transport = this.transport;
+    if (welcome.roomEpoch !== this.roomEpoch) {
+      this.failWith(
+        createCollaborationError(
+          'ROOM_EPOCH_MISMATCH',
+          'A sala foi restaurada ou migrada para uma nova epoch incompatível (COLLAB-14)',
+          { clientEpoch: this.roomEpoch, serverEpoch: welcome.roomEpoch },
+        ),
+      );
+      return;
+    }
+    this.applyMissing(welcome.missing);
+    await this.flushPendingCommits();
+    const stillCurrent = !this.isDestroyed && transport === this.transport;
+    if (!stillCurrent || transport.state !== 'open' || this._status !== 'reconnecting') return;
+    this.setStatus('connected');
+    // O que foi editado durante o reenvio ficou na fila: sai agora.
+    if (this.pendingCommits.length > 0) await this.flushPendingCommits();
   }
 
   async reconnect(): Promise<Result<void, CollaborationError>> {
@@ -384,25 +468,7 @@ export class YjsCollaborationSession implements CollaborationSession {
       this.setStatus('error', fetched.error);
       return fetched;
     }
-    const missing = fetched.value;
-    if (missing && missing.byteLength > 0) {
-      Y.applyUpdate(this.ydoc, missing, 'remote-sync');
-      const projected = projectYDocToCanvasDocument(this.ydoc);
-      this.isApplyingRemote = true;
-      try {
-        const prevSelected = this.section.getSnapshot().session.selectedIds;
-        this.recordLostInkStrokes(this.section.getSnapshot().document.nodes, projected.nodes);
-        this.section.replaceDocument(projected);
-        const validSelected = prevSelected.filter((id) => Boolean(projected.nodes[id]));
-        if (validSelected.length > 0) {
-          this.section.setSelection(validSelected);
-        }
-        this.lastKnownDocRevision = this.section.getSnapshot().revision;
-        this.knownLocalNodeIds = new Set(Object.keys(projected.nodes));
-      } finally {
-        this.isApplyingRemote = false;
-      }
-    }
+    this.applyMissing(fetched.value);
 
     this.setStatus('connected');
 
@@ -443,8 +509,7 @@ export class YjsCollaborationSession implements CollaborationSession {
       this.unsubscribeSection = null;
     }
 
-    this.unsubscribeInbound?.();
-    this.unsubscribeInbound = null;
+    this.stopListening();
     this.transport.close();
     this.awareness.destroy();
     this.undoManager.destroy();
@@ -918,11 +983,7 @@ export class YjsCollaborationSession implements CollaborationSession {
     if (this._status === 'connected') {
       const res = await this.track(this.transport.commit(commitId, update, this.roomEpoch));
       if (res.ok) {
-        this.pendingCommits = this.pendingCommits.filter((p) => p.commitId !== commitId);
-        this.receipts.push(res.value);
-        for (const l of this.commitReceiptListeners) {
-          l(res.value);
-        }
+        this.confirmCommit(res.value);
       } else if (res.error.code === 'ROOM_EPOCH_MISMATCH') {
         this.setStatus(
           'error',
@@ -935,19 +996,27 @@ export class YjsCollaborationSession implements CollaborationSession {
     }
   }
 
+  /**
+   * Tira o commit das pendências e avisa o recibo. O mesmo commit pode ser confirmado duas vezes
+   * (o envio original e um reenvio depois da volta do enlace): só a primeira conta.
+   */
+  private confirmCommit(receipt: CommitReceipt): void {
+    const before = this.pendingCommits.length;
+    this.pendingCommits = this.pendingCommits.filter((p) => p.commitId !== receipt.commitId);
+    if (this.pendingCommits.length === before) return;
+    this.receipts.push(receipt);
+    for (const l of this.commitReceiptListeners) {
+      l(receipt);
+    }
+  }
+
   private async flushPendingCommits(): Promise<void> {
     const toSend = [...this.pendingCommits];
     for (const pending of toSend) {
       const res = await this.track(
         this.transport.commit(pending.commitId, pending.update, this.roomEpoch),
       );
-      if (res.ok) {
-        this.pendingCommits = this.pendingCommits.filter((p) => p.commitId !== pending.commitId);
-        this.receipts.push(res.value);
-        for (const l of this.commitReceiptListeners) {
-          l(res.value);
-        }
-      }
+      if (res.ok) this.confirmCommit(res.value);
     }
   }
 
@@ -975,6 +1044,13 @@ export class YjsCollaborationSession implements CollaborationSession {
       this.applyRemotePresence(message.from, message.state);
     } else if (message.type === 'update') {
       this.applyRemoteUpdate(message.update);
+    } else if (message.type === 'resync') {
+      void this.track(this.handleResync(message.welcome));
+    } else if (message.fatal) {
+      this.failWith(message.error);
+    } else {
+      // Aviso: o ouvinte recebe o erro com o status atual, sem transição.
+      this.setStatus(this._status, message.error);
     }
   }
 
