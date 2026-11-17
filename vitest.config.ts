@@ -27,6 +27,8 @@ const SERIAL_TESTS = [
   'tests/benchmarks/**/*.test.ts',
   // Sockets e portas de verdade, em loopback: um arquivo por vez, depois da suíte.
   'packages/collaboration-server/**/*.integration.test.ts',
+  // Medições (CANVASH_BENCH=1 para a escala completa); sem a variável, uma escala pequena.
+  'packages/*/src/**/*.benchmark.test.ts',
 ];
 
 export default defineConfig({
