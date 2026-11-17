@@ -7,3 +7,4 @@ export type {
   StoredRoom,
 } from './storage.js';
 export { createMemoryRoomStorage } from './storage-memory.js';
+export { createFileRoomStorage } from './storage-file.js';

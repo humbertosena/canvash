@@ -240,21 +240,37 @@ describe('@canvash/collaboration-server packaging contract', () => {
 // --- Armazenamento de salas e a entrada /testing ---
 
 const STORAGE_SMOKE_BODY = `
-async function main() {
-  const cases = roomStorageContractCases(() => createMemoryRoomStorage(), {
-    reopen: (storage) => storage,
-  });
+async function runAll(factory, reopen) {
+  const cases = roomStorageContractCases(factory, { reopen });
   let passed = 0;
   for (const contractCase of cases) {
     await contractCase.run();
     passed += 1;
   }
+  return {
+    cases: cases.length >= 15,
+    skipped: cases.filter((contractCase) => contractCase.skipped !== undefined).length,
+    passed: passed === cases.length,
+  };
+}
+
+async function main() {
+  const memory = await runAll(() => createMemoryRoomStorage(), (storage) => storage);
+  const directories = new WeakMap();
+  const file = await runAll(
+    () => {
+      const directory = mkdtempSync(join(tmpdir(), 'canvash-packaging-rooms-'));
+      const storage = createFileRoomStorage({ directory });
+      directories.set(storage, directory);
+      return storage;
+    },
+    (storage) => createFileRoomStorage({ directory: directories.get(storage) }),
+  );
   console.log(
     JSON.stringify({
       testingEntry: testingResolved.split('/@canvash/collaboration-server/')[1],
-      cases: cases.length >= 15,
-      skipped: cases.filter((contractCase) => contractCase.skipped !== undefined).length,
-      passed: passed === cases.length,
+      memory,
+      file,
     }),
   );
 }
@@ -266,6 +282,7 @@ main().catch((error) => {
 
 const STORAGE_TYPED_USAGE = `
 import {
+  createFileRoomStorage,
   createMemoryRoomStorage,
   type AppendBatch,
   type RoomStorage,
@@ -279,6 +296,7 @@ import {
 } from '@canvash/collaboration-server/testing';
 
 export const storage: RoomStorage = createMemoryRoomStorage();
+export const onDisk: RoomStorage = createFileRoomStorage({ directory: './salas' });
 export const options: RoomStorageContractOptions = { keepsReceipts: true };
 export const cases: readonly ContractCase[] = roomStorageContractCases(() => storage, options);
 
@@ -288,7 +306,8 @@ export function sizeOf(room: StoredRoom, commit: StoredCommit, batch: AppendBatc
 `;
 
 describe('@canvash/collaboration-server: armazenamento de salas e entrada /testing', () => {
-  const EXPECTED = { cases: true, skipped: 0, passed: true };
+  const RAN = { cases: true, skipped: 0, passed: true };
+  const EXPECTED = { memory: RAN, file: RAN };
 
   it('o tarball traz a entrada /testing ao lado da principal', () => {
     expect(tarballFiles).toEqual(
@@ -312,11 +331,12 @@ describe('@canvash/collaboration-server: armazenamento de salas e entrada /testi
   });
 
   for (const bin of nodeBinaries) {
-    it(`a suíte de contrato, importada do tarball, passa com o armazenamento em memória via ESM em ${bin}`, () => {
+    it(`a suíte de contrato, importada do tarball, passa com o armazenamento em memória e o em arquivo via ESM em ${bin}`, () => {
       const scriptPath = join(projectDir, 'storage-import.mjs');
       writeFileSync(
         scriptPath,
-        `import { createMemoryRoomStorage } from '@canvash/collaboration-server';\n` +
+        `import { createFileRoomStorage, createMemoryRoomStorage } from '@canvash/collaboration-server';\n` +
+          `import { mkdtempSync } from 'node:fs';\nimport { tmpdir } from 'node:os';\nimport { join } from 'node:path';\n` +
           `import { roomStorageContractCases } from '@canvash/collaboration-server/testing';\n` +
           `const testingResolved = import.meta.resolve('@canvash/collaboration-server/testing');\n` +
           STORAGE_SMOKE_BODY,
@@ -325,18 +345,19 @@ describe('@canvash/collaboration-server: armazenamento de salas e entrada /testi
 
       const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
 
-      expect(result.status).toBe(0);
+      expect(result.status, result.stderr).toBe(0);
       expect(JSON.parse(result.stdout.trim())).toEqual({
         ...EXPECTED,
         testingEntry: 'dist/testing.mjs',
       });
     });
 
-    it(`a suíte de contrato, importada do tarball, passa com o armazenamento em memória via CJS em ${bin}`, () => {
+    it(`a suíte de contrato, importada do tarball, passa com o armazenamento em memória e o em arquivo via CJS em ${bin}`, () => {
       const scriptPath = join(projectDir, 'storage-require.cjs');
       writeFileSync(
         scriptPath,
-        `const { createMemoryRoomStorage } = require('@canvash/collaboration-server');\n` +
+        `const { createFileRoomStorage, createMemoryRoomStorage } = require('@canvash/collaboration-server');\n` +
+          `const { mkdtempSync } = require('node:fs');\nconst { tmpdir } = require('node:os');\nconst { join } = require('node:path');\n` +
           `const { roomStorageContractCases } = require('@canvash/collaboration-server/testing');\n` +
           `const testingResolved = require.resolve('@canvash/collaboration-server/testing');\n` +
           STORAGE_SMOKE_BODY,
@@ -345,7 +366,7 @@ describe('@canvash/collaboration-server: armazenamento de salas e entrada /testi
 
       const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
 
-      expect(result.status).toBe(0);
+      expect(result.status, result.stderr).toBe(0);
       expect(JSON.parse(result.stdout.trim())).toEqual({
         ...EXPECTED,
         testingEntry: 'dist/testing.cjs',
@@ -382,7 +403,7 @@ describe('@canvash/collaboration-server: armazenamento de salas e entrada /testi
       });
 
       expect(result.stdout).toBe('');
-      expect(result.status).toBe(0);
+      expect(result.status, result.stderr).toBe(0);
     });
   }
 });
