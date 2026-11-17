@@ -19,6 +19,8 @@ export const SUPPORTED_PROVIDER = 'yjs';
 export interface RoomClient {
   readonly sessionId: string;
   readonly access: RoomAccess;
+  /** Identidade que o `authorize` informou. */
+  readonly user?: { readonly id: string; readonly name?: string };
   /** Manda uma mensagem. `false` quando a conexão não aceitou. */
   send(message: ServerMessage): boolean;
   /** Fecha a conexão do cliente, sem esperar por nada. */

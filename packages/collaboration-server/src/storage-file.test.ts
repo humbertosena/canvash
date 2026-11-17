@@ -237,17 +237,16 @@ describe('createFileRoomStorage: queda durante a escrita do log (US-S.7)', () =>
     expect(afterC).toBe(full.byteLength);
 
     for (let cut = afterB; cut < afterC; cut += 1) {
-      const copy = await tempDirectory();
-      await cp(join(directory, 'doc'), join(copy, 'doc'), { recursive: true });
-      await truncate(join(copy, 'doc', 'log.0.bin'), cut);
+      // Um diretório só: cada volta regrava o log inteiro e corta de novo, sem copiar a sala.
+      await writeFile(log, full.subarray(0, cut));
 
-      const back = await loadedRoom(createFileRoomStorage({ directory: copy }), 'doc');
+      const back = await loadedRoom(createFileRoomStorage({ directory }), 'doc');
 
       expect(
         back.log.map((commit) => commit.commitId),
         `corte em ${cut}`,
       ).toEqual(['commit-a', 'commit-b']);
-      expect((await stat(join(copy, 'doc', 'log.0.bin'))).size, `corte em ${cut}`).toBe(afterB);
+      expect((await stat(log)).size, `corte em ${cut}`).toBe(afterB);
     }
     expect(afterA).toBeGreaterThan(0);
   });

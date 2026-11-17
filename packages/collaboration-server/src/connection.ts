@@ -7,10 +7,18 @@ import {
   type CollaborationError,
   type CollaborationErrorCode,
   type Result,
+  type RoomAccess,
   type ServerMessage,
 } from '@canvash/collaboration';
+import { runAuthorize } from './authorize.js';
+import type { CollaborationServerLogger } from './logger.js';
 import { SUPPORTED_PROVIDER, type Room, type RoomClient } from './room.js';
-import type { ServerConnection } from './types.js';
+import type {
+  AuthorizeRequest,
+  AuthorizeResult,
+  ConnectionRequest,
+  ServerConnection,
+} from './types.js';
 
 /** O `documentId` é também o nome no armazenamento: nada de caminho. */
 const DOCUMENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -19,6 +27,8 @@ const DOCUMENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 export const CLOSE_FATAL = 4000;
 /** Conexão substituída por outra com o mesmo `sessionId`. */
 export const CLOSE_REPLACED = 4001;
+/** Origem fora de `allowedOrigins`. */
+export const CLOSE_ORIGIN = 4003;
 const CLOSE_NORMAL = 1000;
 
 type Hello = Extract<ClientMessage, { t: 'hello' }>;
@@ -28,6 +38,10 @@ export interface ConnectionContext {
   readonly maxFrameBytes: number;
   readonly helloTimeoutMs: number;
   readonly now: () => number;
+  readonly logger: CollaborationServerLogger;
+  readonly allowedOrigins: readonly string[] | undefined;
+  readonly authorize:
+    ((request: AuthorizeRequest) => AuthorizeResult | Promise<AuthorizeResult>) | undefined;
   getRoom(documentId: string): Promise<Result<Room, CollaborationError>>;
 }
 
@@ -37,7 +51,25 @@ type Phase = 'awaiting-hello' | 'joining' | 'joined' | 'closed';
  * Atende uma conexão do `hello` até o fechamento. Não conhece o meio: só fala com a
  * `ServerConnection`.
  */
-export function serveConnection(context: ConnectionContext, connection: ServerConnection): void {
+export function serveConnection(
+  context: ConnectionContext,
+  connection: ServerConnection,
+  request: ConnectionRequest,
+): void {
+  const origin = request.headers.get('origin') ?? undefined;
+  if (context.allowedOrigins !== undefined && !context.allowedOrigins.includes(origin ?? '')) {
+    // Antes de tudo: sem mensagem, sem prazo de hello e sem chamar o `authorize` (R19).
+    context.logger.info?.('conexão recusada: origem fora de allowedOrigins', {
+      reason: 'origin',
+      originPresent: origin !== undefined,
+    });
+    try {
+      connection.close(CLOSE_ORIGIN, 'origin');
+    } catch {
+      // A conexão já estava perdida.
+    }
+    return;
+  }
   let phase: Phase = 'awaiting-hello';
   let room: Room | undefined;
   let client: RoomClient | undefined;
@@ -104,6 +136,35 @@ export function serveConnection(context: ConnectionContext, connection: ServerCo
     if (!DOCUMENT_ID.test(hello.documentId)) {
       return fatal('INVALID_DOCUMENT', 'O documentId tem de casar com ^[A-Za-z0-9_-]{1,128}$.');
     }
+
+    let access: RoomAccess = 'write';
+    let user: RoomClient['user'];
+    if (context.authorize !== undefined) {
+      const decision = await runAuthorize(
+        context.authorize,
+        {
+          documentId: hello.documentId,
+          sessionId: hello.sessionId,
+          credentials: hello.credentials,
+          origin,
+          headers: request.headers,
+          context: request.context,
+        },
+        context.logger,
+      );
+      if (phase !== 'joining') return;
+      if (!decision.allow) {
+        return fatal(
+          decision.code,
+          decision.reason === undefined
+            ? 'Acesso recusado.'
+            : `Acesso recusado: ${decision.reason}`,
+        );
+      }
+      access = decision.access;
+      user = decision.user;
+    }
+
     if (hello.provider !== SUPPORTED_PROVIDER) {
       return fatal('UNSUPPORTED', `O provider "${hello.provider}" não é o deste servidor.`, {
         provider: SUPPORTED_PROVIDER,
@@ -112,7 +173,21 @@ export function serveConnection(context: ConnectionContext, connection: ServerCo
 
     const opened = await context.getRoom(hello.documentId);
     if (phase !== 'joining') return;
-    if (!opened.ok) return fatalFrom(opened.error);
+    if (!opened.ok) {
+      context.logger.error('falha ao abrir a sala', {
+        documentId: hello.documentId,
+        sessionId: hello.sessionId,
+        code: opened.error.code,
+      });
+      // A mensagem do armazenamento é do host e pode ter endereço, caminho ou credencial.
+      return fatal(
+        opened.error.code,
+        opened.error.code === 'UNSUPPORTED'
+          ? opened.error.message
+          : 'A sala não pôde ser aberta no armazenamento.',
+        opened.error.code === 'UNSUPPORTED' ? opened.error.details : undefined,
+      );
+    }
     const joined = opened.value;
 
     if (hello.roomEpoch !== undefined && hello.roomEpoch !== joined.roomEpoch) {
@@ -129,7 +204,8 @@ export function serveConnection(context: ConnectionContext, connection: ServerCo
 
     const self: RoomClient = {
       sessionId: hello.sessionId,
-      access: 'write',
+      access,
+      ...(user === undefined ? {} : { user }),
       send,
       close: closeWith,
     };
@@ -146,6 +222,7 @@ export function serveConnection(context: ConnectionContext, connection: ServerCo
       missing: missing.value,
       serverSyncState: joined.serverSyncState(),
       serverTime: context.now(),
+      ...(user === undefined ? {} : { user }),
     });
     phase = 'joined';
     for (const message of early.splice(0)) route(message);

@@ -5,10 +5,12 @@ import {
 } from '@canvash/collaboration';
 import { randomUUID } from 'node:crypto';
 import { CLOSE_FATAL, serveConnection, type ConnectionContext } from './connection.js';
+import { consoleLogger } from './logger.js';
 import { openRoom, type Room } from './room.js';
 import type {
   CollaborationServer,
   CollaborationServerOptions,
+  ConnectionRequest,
   RoomStats,
   ServerConnection,
 } from './types.js';
@@ -28,6 +30,13 @@ export function createCollaborationServer(
   options: CollaborationServerOptions,
 ): CollaborationServer {
   const createEpoch = options.createEpoch ?? (() => randomUUID());
+  const logger = options.logger ?? consoleLogger;
+  if (options.authorize === undefined) {
+    logger.warn('sem authorize: toda conexão recebe acesso write');
+  }
+  if (options.allowedOrigins === undefined) {
+    logger.warn('sem allowedOrigins: o servidor aceita conexão de qualquer origem');
+  }
   const rooms = new Map<string, RoomEntry>();
 
   function getRoom(documentId: string): Promise<Result<Room, CollaborationError>> {
@@ -50,13 +59,16 @@ export function createCollaborationServer(
     maxFrameBytes: options.maxFrameBytes ?? DEFAULT_MAX_FRAME_BYTES,
     helloTimeoutMs: options.helloTimeoutMs ?? DEFAULT_HELLO_TIMEOUT_MS,
     now: options.now ?? Date.now,
+    logger,
+    allowedOrigins: options.allowedOrigins,
+    authorize: options.authorize,
     getRoom,
   };
 
   return {
-    handleConnection(connection: ServerConnection): void {
+    handleConnection(connection: ServerConnection, request: ConnectionRequest): void {
       try {
-        serveConnection(context, connection);
+        serveConnection(context, connection, request);
       } catch {
         try {
           connection.close(CLOSE_FATAL, 'INTERNAL');

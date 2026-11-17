@@ -10,6 +10,7 @@ import { createMemoryRoomStorage } from './storage-memory.js';
 import type { StoredRoom } from './storage.js';
 import { FakeConnection } from './test-support/fake-connection.js';
 import { createInstrumentedStorage } from './test-support/instrumented-storage.js';
+import { createRecordingLogger } from './test-support/recording-logger.js';
 import type { CollaborationServerOptions, ConnectionRequest } from './types.js';
 
 type Hello = Extract<ClientMessage, { t: 'hello' }>;
@@ -35,6 +36,7 @@ function setup(extra: Partial<CollaborationServerOptions> = {}) {
   let epochs = 0;
   const server = createCollaborationServer({
     storage,
+    logger: createRecordingLogger(),
     now: () => NOW,
     createEpoch: () => `epoch-${(epochs += 1)}`,
     ...extra,

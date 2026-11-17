@@ -9,7 +9,10 @@ export type {
 export { createMemoryRoomStorage } from './storage-memory.js';
 export { createFileRoomStorage } from './storage-file.js';
 export { createCollaborationServer } from './server.js';
+export { consoleLogger, type CollaborationServerLogger, type LogFields } from './logger.js';
 export type {
+  AuthorizeRequest,
+  AuthorizeResult,
   CollaborationServer,
   CollaborationServerOptions,
   ConnectionRequest,
