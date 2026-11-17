@@ -22,6 +22,7 @@ export {
   encodeServerMessage,
   type DecodeOptions,
 } from './codec.js';
+export { decodeFrameFromText, encodeFrameAsText } from './codec-text.js';
 export {
   DEFAULT_PRESENCE_TIMEOUT_MS,
   MAX_OFFLINE_BACKLOG_BYTES,
