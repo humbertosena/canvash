@@ -5,6 +5,9 @@
   "description": "Servidor Node de referência da colaboração Canvash: salas, ACK durável e armazenamento, independente do meio de transporte.",
   "type": "module",
   "sideEffects": false,
+  "bin": {
+    "canvash-collab-server": "./dist/cli.mjs"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./ws": "./src/ws/index.ts",

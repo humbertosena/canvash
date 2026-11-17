@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -10,10 +10,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
+import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
 import { packDirOf, packedTarball } from './global-setup.js';
 
@@ -614,4 +615,263 @@ describe('@canvash/collaboration-server: entrada /ws (US-S.1, US-S.9)', () => {
       expect(result.status).toBe(0);
     });
   }
+});
+
+// --- CLI e sobrevivência do commit ao SIGKILL (COLLAB-13, US-S.3, US-S.9) ---
+
+const CLIENT_SCRIPT = `
+import { decodeServerMessage, encodeClientMessage } from '@canvash/collaboration';
+import { WebSocket } from 'ws';
+import * as Y from 'yjs';
+
+const [url, mode, commitId, updateB64] = process.argv.slice(2);
+
+function addRectangle(doc, id) {
+  const shapes = doc.getMap('shapes');
+  const record = new Y.Map();
+  record.set('id', id);
+  record.set('type', 'rectangle');
+  record.set('generation', 1);
+  record.set('isDeleted', false);
+  record.set('placement', { parentId: 'layer-default', orderKey: 'm_' + id });
+  record.set('geometry', { x: 0, y: 0, width: 10, height: 10, rotation: 0 });
+  shapes.set(id, record);
+}
+
+const socket = new WebSocket(url);
+socket.binaryType = 'arraybuffer';
+const doc = new Y.Doc();
+let welcome;
+const timer = setTimeout(() => { console.error('sem resposta'); process.exit(1); }, 8000);
+
+socket.on('open', () =>
+  socket.send(encodeClientMessage({
+    t: 'hello', v: 1, provider: 'yjs', documentId: 'doc-crash', sessionId: 'sessao-' + mode,
+    syncState: new Uint8Array(),
+  })),
+);
+socket.on('message', (data) => {
+  const decoded = decodeServerMessage(new Uint8Array(data));
+  if (!decoded.ok) { console.error(decoded.error.message); process.exit(1); }
+  const message = decoded.value;
+  if (message.t === 'error') { console.error(JSON.stringify(message)); process.exit(1); }
+  if (message.t === 'welcome') {
+    welcome = message;
+    Y.applyUpdate(doc, message.missing);
+    let update;
+    if (mode === 'commit') {
+      const updates = [];
+      doc.on('update', (u) => updates.push(u));
+      addRectangle(doc, 'forma-do-crash');
+      update = updates[0];
+    } else {
+      update = new Uint8Array(Buffer.from(updateB64, 'base64'));
+    }
+    socket.send(encodeClientMessage({ t: 'commit', id: 1, commitId: commitId || 'commit-crash', roomEpoch: message.roomEpoch, update }));
+    globalThis.sentUpdate = update;
+  }
+  if (message.t === 'ack') {
+    clearTimeout(timer);
+    console.log(JSON.stringify({
+      receipt: message.receipt,
+      epoch: welcome.roomEpoch,
+      update: Buffer.from(globalThis.sentUpdate).toString('base64'),
+      shapes: Object.keys(doc.getMap('shapes').toJSON()),
+    }));
+    socket.close();
+    process.exit(0);
+  }
+});
+socket.on('error', (error) => { console.error(error.message); process.exit(1); });
+`;
+
+describe('@canvash/collaboration-server: CLI', () => {
+  const cliPath = (): string =>
+    join(projectDir, 'node_modules', '@canvash', 'collaboration-server', 'dist', 'cli.mjs');
+  const children: ChildProcess[] = [];
+
+  afterEach(() => {
+    for (const child of children.splice(0)) child.kill('SIGKILL');
+  });
+
+  /** Sobe a CLI e espera a linha com a URL. */
+  async function startCli(
+    args: readonly string[],
+  ): Promise<{ child: ChildProcess; url: string; stderr: () => string }> {
+    const child = spawn(process.execPath, [cliPath(), ...args], {
+      cwd: projectDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    children.push(child);
+    let stderr = '';
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8');
+    });
+    const url = await new Promise<string>((resolve, reject) => {
+      let stdout = '';
+      const timer = setTimeout(
+        () => reject(new Error(`a CLI não anunciou a URL: ${stderr}`)),
+        10_000,
+      );
+      child.stdout?.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8');
+        const match = /escutando em (ws:\/\/\S+)/.exec(stdout);
+        if (match?.[1] !== undefined) {
+          clearTimeout(timer);
+          resolve(match[1]);
+        }
+      });
+      child.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`a CLI saiu com ${code} antes de escutar: ${stderr}`));
+      });
+    });
+    return { child, url, stderr: () => stderr };
+  }
+
+  function exited(child: ChildProcess): Promise<{ code: number | null; signal: string | null }> {
+    return new Promise((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve({ code: child.exitCode, signal: child.signalCode });
+        return;
+      }
+      child.once('exit', (code, signal) => resolve({ code, signal }));
+    });
+  }
+
+  function runClient(args: readonly string[]): {
+    receipt: unknown;
+    epoch: string;
+    update: string;
+    shapes: string[];
+  } {
+    const script = join(projectDir, 'crash-client.mjs');
+    writeFileSync(script, CLIENT_SCRIPT, 'utf8');
+    const result = spawnSync(process.execPath, [script, ...args], {
+      cwd: projectDir,
+      encoding: 'utf8',
+    });
+    expect(result.status, result.stderr).toBe(0);
+    return JSON.parse(result.stdout.trim()) as ReturnType<typeof runClient>;
+  }
+
+  it('declara o bin e o tarball traz o dist/cli.mjs executável', () => {
+    const pkg = JSON.parse(
+      readFileSync(
+        join(projectDir, 'node_modules', '@canvash', 'collaboration-server', 'package.json'),
+        'utf8',
+      ),
+    ) as { bin: Record<string, string> };
+    expect(pkg.bin).toEqual({ 'canvash-collab-server': './dist/cli.mjs' });
+    expect(tarballFiles).toContain('dist/cli.mjs');
+    const packedDir = packDirOf(packs, '@canvash/collaboration-server');
+    const [tarball] = readdirSync(packedDir).filter((name) => name.endsWith('.tgz'));
+    const listing = execFileSync('tar', ['-tvzf', join(packedDir, String(tarball))], {
+      encoding: 'utf8',
+    });
+    expect(listing).toMatch(/^-rwx\S+.*package\/dist\/cli\.mjs$/m);
+  });
+
+  it('--help mostra o uso, avisa que é para desenvolvimento e sai com 0', () => {
+    const result = spawnSync(process.execPath, [cliPath(), '--help'], {
+      cwd: projectDir,
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Uso: canvash-collab-server');
+    expect(result.stdout).toContain('DESENVOLVIMENTO');
+  });
+
+  it('argumento inválido: explica no stderr e sai com 2', () => {
+    const result = spawnSync(process.execPath, [cliPath(), '--port', 'abc'], {
+      cwd: projectDir,
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('--port');
+    expect(result.stdout).toBe('');
+  });
+
+  it('sobe na porta pedida, avisa que é de desenvolvimento e sai com SIGTERM sem deixar processo', async () => {
+    const free = await new Promise<number>((resolve) => {
+      const probe = createNetServer().listen(0, '127.0.0.1', () => {
+        const { port } = probe.address() as AddressInfo;
+        probe.close(() => resolve(port));
+      });
+    });
+    const dataDir = mkdtempSync(join(tmpdir(), 'canvash-cli-data-'));
+    try {
+      const { child, url, stderr } = await startCli(['--port', String(free), '--data', dataDir]);
+
+      expect(url).toBe(`ws://127.0.0.1:${free}/collab`);
+      expect(stderr()).toContain('DESENVOLVIMENTO');
+      child.kill('SIGTERM');
+      const outcome = await exited(child);
+      expect(outcome).toEqual({ code: 0, signal: null });
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('o commit confirmado sobrevive ao SIGKILL: outra CLI no mesmo diretório entrega o commit e o mesmo recibo no reenvio', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'canvash-cli-crash-'));
+    try {
+      const first = await startCli(['--port', '0', '--data', dataDir]);
+      const committed = runClient([first.url, 'commit', 'commit-crash']);
+      first.child.kill('SIGKILL');
+      expect(await exited(first.child)).toEqual({ code: null, signal: 'SIGKILL' });
+
+      const second = await startCli(['--port', '0', '--data', dataDir]);
+      const verified = runClient([second.url, 'verify', 'commit-crash', committed.update]);
+      second.child.kill('SIGTERM');
+      await exited(second.child);
+
+      expect(verified.shapes).toEqual(['forma-do-crash']);
+      expect(verified.epoch).toBe(committed.epoch);
+      expect(verified.receipt).toEqual(committed.receipt);
+      expect(readdirSync(join(dataDir, 'doc-crash'))).toContain('room.json');
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('a origem fora de --origin recebe 403 e a da lista entra', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'canvash-cli-origin-'));
+    try {
+      const { child, url } = await startCli([
+        '--port',
+        '0',
+        '--data',
+        dataDir,
+        '--origin',
+        'http://localhost:5173',
+      ]);
+      const probe = (origin: string): string => {
+        const script = join(projectDir, 'origin-probe.mjs');
+        writeFileSync(
+          script,
+          `import { WebSocket } from 'ws';\n` +
+            `const ws = new WebSocket(process.argv[2], { origin: process.argv[3] });\n` +
+            `ws.on('open', () => { console.log('open'); ws.close(); });\n` +
+            `ws.on('unexpected-response', (_q, r) => { console.log('HTTP ' + r.statusCode); process.exit(0); });\n` +
+            `ws.on('error', () => undefined);\n` +
+            `ws.on('close', () => process.exit(0));\n`,
+          'utf8',
+        );
+        return spawnSync(process.execPath, [script, url, origin], {
+          cwd: projectDir,
+          encoding: 'utf8',
+        }).stdout.trim();
+      };
+
+      expect(probe('http://atacante.test')).toBe('HTTP 403');
+      expect(probe('http://localhost:5173')).toBe('open');
+      child.kill('SIGTERM');
+      await exited(child);
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
 });
