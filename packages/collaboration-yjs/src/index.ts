@@ -18,6 +18,7 @@ export {
   type ServerEmulatorOptions,
 } from './server-emulator.js';
 export { createMemoryTransport } from './memory-transport.js';
+export type { LegacyTransportHub } from './legacy-hub-transport.js';
 export {
   DeterministicTransportHub,
   type MemoryLink,

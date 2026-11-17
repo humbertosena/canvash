@@ -6,14 +6,10 @@ import type {
   TransportWelcome,
 } from '@canvash/collaboration';
 import type { LocalAwarenessState } from './awareness.js';
+import type { TransportMessage } from './legacy-message.js';
 import type { CollaborativeServerEmulator } from './server-emulator.js';
 
-export interface TransportMessage {
-  type: 'update' | 'presence';
-  commitId?: string;
-  payload: Uint8Array | LocalAwarenessState | null;
-  senderSessionId: string;
-}
+export type { TransportMessage } from './legacy-message.js';
 
 export interface TransportNetworkOptions {
   /** Simulação de atraso em ms */

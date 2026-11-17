@@ -83,6 +83,14 @@ module.exports = {
     ...libraryOwners,
     ...wrapperPairs,
     {
+      name: 'sessao-so-conhece-a-interface-de-transporte',
+      comment:
+        'A sessão Yjs fala com a rede só por CollaborationTransport: não importa o hub em memória nem o emulador de servidor.',
+      severity: 'error',
+      from: { path: '^packages/collaboration-yjs/src/session\\.ts$' },
+      to: { path: '^packages/collaboration-yjs/src/(transport|server-emulator)\\.ts$' },
+    },
+    {
       name: 'pacote-fora-do-mapa',
       comment: 'Pacote novo entra primeiro em MODULES acima.',
       severity: 'error',

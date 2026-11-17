@@ -3,7 +3,6 @@ import {
   err,
   ok,
   type CollaborationError,
-  type CollaborationErrorCode,
   type CollaborationTransport,
   type CommitReceipt,
   type CreateTransport,
@@ -14,42 +13,11 @@ import {
   type TransportWelcome,
 } from '@canvash/collaboration';
 import type { LocalAwarenessState } from './awareness.js';
+import { commitError, transportNotOpen } from './commit-errors.js';
 import type { DeterministicTransportHub, MemoryLink, TransportMessage } from './transport.js';
 
 /** Código de fechamento do enlace que perdeu o lugar para outro com o mesmo `sessionId`. */
 const CLOSE_REPLACED = 4001;
-
-/** Códigos que o hub e o emulador devolvem num commit recusado → erro do contrato. */
-const COMMIT_ERRORS: Readonly<Record<string, { code: CollaborationErrorCode; message: string }>> = {
-  ROOM_EPOCH_MISMATCH: {
-    code: 'ROOM_EPOCH_MISMATCH',
-    message: 'A sala está em outra epoch',
-  },
-  INVALID_DOCUMENT: {
-    code: 'INVALID_DOCUMENT',
-    message: 'O update não é um update válido do provider',
-  },
-  STORAGE_UNAVAILABLE: {
-    code: 'STORAGE_UNAVAILABLE',
-    message: 'O servidor não conseguiu gravar o commit',
-  },
-  NETWORK_PARTITION: { code: 'DISCONNECTED', message: 'O commit não chegou ao servidor' },
-  CRASHED: { code: 'DISCONNECTED', message: 'O servidor não respondeu ao commit' },
-};
-
-function commitError(code: string): CollaborationError {
-  const known = COMMIT_ERRORS[code];
-  if (known === undefined) {
-    return createCollaborationError('DISCONNECTED', 'O commit não foi confirmado', {
-      reason: code,
-    });
-  }
-  return createCollaborationError(known.code, known.message, { reason: code });
-}
-
-function notOpen(): CollaborationError {
-  return createCollaborationError('DISCONNECTED', 'O transporte não está aberto');
-}
 
 /**
  * O hub em memória como implementação de `CollaborationTransport`: handshake, commits, sync e
@@ -158,17 +126,17 @@ export function createMemoryTransport(hub: DeterministicTransportHub): CreateTra
         update: Uint8Array,
         roomEpoch: string,
       ): Promise<Result<CommitReceipt, CollaborationError>> {
-        if (state !== 'open') return err(notOpen());
+        if (state !== 'open') return err(transportNotOpen());
         const generation = linkGeneration;
         const result = await hub.sendUpdate(sessionId, commitId, update, roomEpoch);
         // O enlace caiu com o pedido em voo: a resposta se perdeu, mesmo que o servidor tenha
         // gravado. Quem reenviar o mesmo `commitId` recebe o recibo.
-        if (generation !== linkGeneration) return err(notOpen());
+        if (generation !== linkGeneration) return err(transportNotOpen());
         return result.ok ? ok(result.receipt) : err(commitError(result.code));
       },
 
       sync(syncState: Uint8Array): Promise<Result<Uint8Array, CollaborationError>> {
-        if (state !== 'open') return Promise.resolve(err(notOpen()));
+        if (state !== 'open') return Promise.resolve(err(transportNotOpen()));
         return Promise.resolve(ok(hub.syncWithServer(syncState)));
       },
 

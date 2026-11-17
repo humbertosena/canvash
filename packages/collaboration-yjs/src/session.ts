@@ -3,14 +3,20 @@ import {
   err,
   MAX_OFFLINE_BACKLOG_BYTES,
   ok,
+  type CollaborationCredentials,
   type CollaborationError,
   type CollaborationSession,
+  type CollaborationTransport,
   type CommitReceipt,
   type ConnectOptions,
+  type CreateTransport,
   type PresenceUpdate,
   type RemotePresence,
   type Result,
   type SessionStatus,
+  type TransportHello,
+  type TransportInbound,
+  type TransportWelcome,
 } from '@canvash/collaboration';
 import {
   inkStrokesToWorld,
@@ -35,8 +41,13 @@ import {
   type YjsEndpoints,
   type YjsGeometry,
 } from './crdt-schema.js';
+import {
+  createLegacyHubTransport,
+  isLegacyTransportHub,
+  type LegacyTransportHub,
+} from './legacy-hub-transport.js';
+import type { TransportMessage } from './legacy-message.js';
 import { projectYDocToCanvasDocument } from './projection.js';
-import type { DeterministicTransportHub, TransportMessage } from './transport.js';
 import { createCollaborativeUndoManager, type CollaborativeUndoManager } from './undo.js';
 
 /** Quantos traços perdidos a sessão guarda para recuperação. */
@@ -96,6 +107,13 @@ export class YjsCollaborationSession implements CollaborationSession {
   private readonly undoManager: CollaborativeUndoManager;
   private readonly awareness: AwarenessManager;
   private readonly maxOfflineBacklogBytes: number;
+  private readonly credentials: CollaborationCredentials | undefined;
+  /** O enlace atual. `reconnect()` troca por outro da mesma fábrica quando este já fechou. */
+  private transport: CollaborationTransport;
+  private readonly createTransport: CreateTransport | null;
+  private unsubscribeInbound: (() => void) | null = null;
+  /** Envios à espera de resposta do servidor. `leave()` espera por eles antes de responder. */
+  private readonly inFlight = new Set<Promise<unknown>>();
 
   private pendingCommits: PendingCommit[] = [];
   private receipts: CommitReceipt[] = [];
@@ -143,18 +161,41 @@ export class YjsCollaborationSession implements CollaborationSession {
     }
   }
 
+  /**
+   * @param transport Um transporte já aberto, com o `welcome` do handshake em `initial`. Também
+   *   aceita o hub em memória antigo (`DeterministicTransportHub`), com o snapshot do servidor em
+   *   `initial`: a sessão o embrulha e registra o cliente nele, sem handshake.
+   * @param createTransport Fábrica do transporte, usada por `reconnect()` quando o enlace já
+   *   fechou. Com o hub antigo, a sessão cria a própria.
+   */
   constructor(
-    private readonly transport: DeterministicTransportHub,
+    transport: CollaborationTransport | LegacyTransportHub,
     options: ConnectOptions,
     sessionId: string,
-    initialServerSnapshot?: Uint8Array,
+    initial?: Uint8Array | TransportWelcome,
+    createTransport?: CreateTransport,
   ) {
+    const welcome = initial instanceof Uint8Array ? undefined : initial;
+    const initialServerSnapshot = initial instanceof Uint8Array ? initial : welcome?.missing;
     this.sessionId = sessionId;
     this.documentId = options.documentId;
     this.section = options.section;
-    this.roomEpoch = options.roomEpoch ?? 'epoch-1';
+    this.roomEpoch = welcome?.roomEpoch ?? options.roomEpoch ?? 'epoch-1';
+    this.credentials = options.credentials;
     this.maxOfflineBacklogBytes = options.maxOfflineBacklogBytes ?? MAX_OFFLINE_BACKLOG_BYTES;
     this.localOrigin = Symbol(`canvash-session-${sessionId}`);
+
+    let legacy: ReturnType<typeof createLegacyHubTransport> | null = null;
+    if (isLegacyTransportHub(transport)) {
+      const hub = transport;
+      const epoch = this.roomEpoch;
+      legacy = createLegacyHubTransport(hub, sessionId, epoch);
+      this.transport = legacy;
+      this.createTransport = () => createLegacyHubTransport(hub, sessionId, epoch);
+    } else {
+      this.transport = transport;
+      this.createTransport = createTransport ?? null;
+    }
 
     this.ydoc = new Y.Doc();
 
@@ -220,15 +261,16 @@ export class YjsCollaborationSession implements CollaborationSession {
       user,
       (state) => {
         if (this._status === 'connected') {
-          this.transport.sendPresence(this.sessionId, state);
+          this.transport.sendPresence(state);
         }
       },
       options.presenceTimeoutMs,
       options.onPresenceError,
     );
 
-    // Registra listener no transport
-    this.transport.registerClient(this.sessionId, (msg) => this.handleTransportMessage(msg));
+    // Passa a ouvir o enlace; com o hub antigo, registra o cliente nele agora
+    this.listenTo(this.transport);
+    legacy?.attach();
 
     // Conecta observação do canvas local
     this.bindCanvasEvents();
@@ -236,7 +278,17 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.setStatus('connected');
     // O commit do documento local, criado acima com a sessão ainda conectando, sai agora: sem
     // isso ele ficaria pendente para sempre e `leave()` recusaria a saída.
-    void this.flushPendingCommits();
+    void this.track(this.flushPendingCommits());
+  }
+
+  /** Registra um envio em andamento até ele terminar. */
+  private track<T>(sending: Promise<T>): Promise<T> {
+    this.inFlight.add(sending);
+    const done = (): void => {
+      this.inFlight.delete(sending);
+    };
+    void sending.then(done, done);
+    return sending;
   }
 
   get status(): SessionStatus {
@@ -267,7 +319,54 @@ export class YjsCollaborationSession implements CollaborationSession {
   disconnect(): void {
     if (this.isDestroyed || this._status === 'disconnected') return;
     this.setStatus('disconnected');
-    this.transport.unregisterClient(this.sessionId);
+    this.transport.close();
+  }
+
+  /** O `hello` de uma conexão: leva o vetor de estado atual, para o servidor mandar só o que falta. */
+  createHello(): TransportHello {
+    return {
+      provider: 'yjs',
+      documentId: this.documentId,
+      sessionId: this.sessionId,
+      roomEpoch: this.roomEpoch,
+      ...(this.credentials === undefined ? {} : { credentials: this.credentials }),
+      syncState: Y.encodeStateVector(this.ydoc),
+    };
+  }
+
+  /**
+   * Traz o que falta do servidor: pelo enlace atual, se ele segue aberto, ou por um enlace novo
+   * da fábrica, com handshake.
+   */
+  private async fetchMissing(): Promise<Result<Uint8Array, CollaborationError>> {
+    if (this.transport.state === 'open') {
+      return this.transport.sync(Y.encodeStateVector(this.ydoc));
+    }
+    if (this.createTransport === null) {
+      return err(
+        createCollaborationError(
+          'UNSUPPORTED',
+          'A sessão foi criada sem fábrica de transporte e não consegue reabrir o enlace',
+        ),
+      );
+    }
+    const transport = this.createTransport({
+      documentId: this.documentId,
+      sessionId: this.sessionId,
+    });
+    this.listenTo(transport);
+    const welcome = await transport.open(() => this.createHello());
+    if (!welcome.ok) {
+      transport.close();
+      return welcome;
+    }
+    this.transport = transport;
+    return ok(welcome.value.missing);
+  }
+
+  private listenTo(transport: CollaborationTransport): void {
+    this.unsubscribeInbound?.();
+    this.unsubscribeInbound = transport.onInbound((message) => this.handleInbound(message));
   }
 
   async reconnect(): Promise<Result<void, CollaborationError>> {
@@ -275,10 +374,17 @@ export class YjsCollaborationSession implements CollaborationSession {
       return err(createCollaborationError('DISCONNECTED', 'Sessão já destruída'));
     }
     this.setStatus('reconnecting');
-    this.transport.registerClient(this.sessionId, (msg) => this.handleTransportMessage(msg));
 
     // Sincroniza updates perdidos durante a desconexão (COLLAB-01, COLLAB-11)
-    const missing = this.transport.syncWithServer(Y.encodeStateVector(this.ydoc));
+    const fetched = await this.fetchMissing();
+    if (this.isDestroyed) {
+      return err(createCollaborationError('DISCONNECTED', 'Sessão já destruída'));
+    }
+    if (!fetched.ok) {
+      this.setStatus('error', fetched.error);
+      return fetched;
+    }
+    const missing = fetched.value;
     if (missing && missing.byteLength > 0) {
       Y.applyUpdate(this.ydoc, missing, 'remote-sync');
       const projected = projectYDocToCanvasDocument(this.ydoc);
@@ -307,6 +413,13 @@ export class YjsCollaborationSession implements CollaborationSession {
   }
 
   async leave(options?: { force?: boolean }): Promise<Result<void, CollaborationError>> {
+    if (!options?.force) {
+      // Commit já enviado e ainda sem resposta não é motivo para recusar a saída: a resposta
+      // chega em seguida, ou o transporte a encerra com erro quando o enlace cai.
+      while (this.inFlight.size > 0 && !this.isDestroyed) {
+        await Promise.allSettled([...this.inFlight]);
+      }
+    }
     if (!options?.force && this.pendingCommits.length > 0) {
       return err(
         createCollaborationError(
@@ -330,7 +443,9 @@ export class YjsCollaborationSession implements CollaborationSession {
       this.unsubscribeSection = null;
     }
 
-    this.transport.unregisterClient(this.sessionId);
+    this.unsubscribeInbound?.();
+    this.unsubscribeInbound = null;
+    this.transport.close();
     this.awareness.destroy();
     this.undoManager.destroy();
     this.ydoc.destroy();
@@ -801,14 +916,14 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.pendingCommits.push(pending);
 
     if (this._status === 'connected') {
-      const res = await this.transport.sendUpdate(this.sessionId, commitId, update, this.roomEpoch);
+      const res = await this.track(this.transport.commit(commitId, update, this.roomEpoch));
       if (res.ok) {
         this.pendingCommits = this.pendingCommits.filter((p) => p.commitId !== commitId);
-        this.receipts.push(res.receipt);
+        this.receipts.push(res.value);
         for (const l of this.commitReceiptListeners) {
-          l(res.receipt);
+          l(res.value);
         }
-      } else if (res.code === 'ROOM_EPOCH_MISMATCH') {
+      } else if (res.error.code === 'ROOM_EPOCH_MISMATCH') {
         this.setStatus(
           'error',
           createCollaborationError(
@@ -823,51 +938,73 @@ export class YjsCollaborationSession implements CollaborationSession {
   private async flushPendingCommits(): Promise<void> {
     const toSend = [...this.pendingCommits];
     for (const pending of toSend) {
-      const res = await this.transport.sendUpdate(
-        this.sessionId,
-        pending.commitId,
-        pending.update,
-        this.roomEpoch,
+      const res = await this.track(
+        this.transport.commit(pending.commitId, pending.update, this.roomEpoch),
       );
       if (res.ok) {
         this.pendingCommits = this.pendingCommits.filter((p) => p.commitId !== pending.commitId);
-        this.receipts.push(res.receipt);
+        this.receipts.push(res.value);
         for (const l of this.commitReceiptListeners) {
-          l(res.receipt);
+          l(res.value);
         }
       }
     }
   }
 
+  /**
+   * Entrega à sessão uma mensagem no formato antigo do hub.
+   *
+   * @deprecated A sessão ouve o transporte sozinha. Fica para quem repassa mensagens do hub por
+   *   outro canal, como os exemplos com `BroadcastChannel`, até eles migrarem para a rede.
+   */
   handleTransportMessage(msg: TransportMessage): void {
     if (this.isDestroyed) return;
 
     if (msg.type === 'presence') {
-      if (msg.payload === null) {
-        this.awareness.handleRemoteDisconnect(msg.senderSessionId);
-      } else {
-        this.awareness.handleRemoteUpdate(msg.payload as LocalAwarenessState);
-      }
+      this.applyRemotePresence(msg.senderSessionId, msg.payload);
     } else if (msg.type === 'update' && msg.payload instanceof Uint8Array) {
-      Y.applyUpdate(this.ydoc, msg.payload, 'remote');
-      const projected = projectYDocToCanvasDocument(this.ydoc);
-      this.isApplyingRemote = true;
-      try {
-        const prevSelected = this.section.getSnapshot().session.selectedIds;
-        this.recordLostInkStrokes(this.section.getSnapshot().document.nodes, projected.nodes);
-        const replaceRes = this.section.replaceDocument(projected);
-        if (!replaceRes.ok) {
-          console.error('COLLAB_REPLACE_FAILED:', JSON.stringify(replaceRes.error));
-        }
-        const validSelected = prevSelected.filter((id) => Boolean(projected.nodes[id]));
-        if (validSelected.length > 0) {
-          this.section.setSelection(validSelected);
-        }
-        this.lastKnownDocRevision = this.section.getSnapshot().revision;
-        this.knownLocalNodeIds = new Set(Object.keys(projected.nodes));
-      } finally {
-        this.isApplyingRemote = false;
+      this.applyRemoteUpdate(msg.payload);
+    }
+  }
+
+  /** O que chega pelo transporte sem ter sido pedido. */
+  private handleInbound(message: TransportInbound): void {
+    if (this.isDestroyed) return;
+
+    if (message.type === 'presence') {
+      this.applyRemotePresence(message.from, message.state);
+    } else if (message.type === 'update') {
+      this.applyRemoteUpdate(message.update);
+    }
+  }
+
+  private applyRemotePresence(from: string, state: unknown): void {
+    if (state === null) {
+      this.awareness.handleRemoteDisconnect(from);
+    } else {
+      this.awareness.handleRemoteUpdate(state as LocalAwarenessState);
+    }
+  }
+
+  private applyRemoteUpdate(update: Uint8Array): void {
+    Y.applyUpdate(this.ydoc, update, 'remote');
+    const projected = projectYDocToCanvasDocument(this.ydoc);
+    this.isApplyingRemote = true;
+    try {
+      const prevSelected = this.section.getSnapshot().session.selectedIds;
+      this.recordLostInkStrokes(this.section.getSnapshot().document.nodes, projected.nodes);
+      const replaceRes = this.section.replaceDocument(projected);
+      if (!replaceRes.ok) {
+        console.error('COLLAB_REPLACE_FAILED:', JSON.stringify(replaceRes.error));
       }
+      const validSelected = prevSelected.filter((id) => Boolean(projected.nodes[id]));
+      if (validSelected.length > 0) {
+        this.section.setSelection(validSelected);
+      }
+      this.lastKnownDocRevision = this.section.getSnapshot().revision;
+      this.knownLocalNodeIds = new Set(Object.keys(projected.nodes));
+    } finally {
+      this.isApplyingRemote = false;
     }
   }
 }
