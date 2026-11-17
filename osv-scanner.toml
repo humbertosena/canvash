@@ -1,0 +1,7 @@
+# Exceção do check:deps, lida pelo osv-scanner a partir da raiz. Regras e condição de saída:
+# CONSTRAINTS.md, seção "Vulnerabilidades aceitas". Validade de no máximo 90 dias.
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2027-02-01
+reason = "ReDoS no picomatch até 4.0.7 (CVSS 8.7), sem versão corrigida em 2026-11-17. Só ferramentas de build e lint (unbuild, eslint, vite, vitest, dependency-cruiser); fora de todo pacote publicado, e os globs vêm de configs do repositório, não de entrada externa."
