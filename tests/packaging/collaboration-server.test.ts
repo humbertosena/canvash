@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { inject } from 'vitest';
@@ -103,11 +103,13 @@ beforeAll(() => {
   // Dependências externas do pacote, para o consumidor isolado.
   const consumerModules = join(projectDir, 'node_modules');
   const packageModules = join(packageDir, 'node_modules');
-  for (const dep of ['yjs', 'lib0']) {
+  for (const dep of ['yjs', 'lib0', 'ws', '@types/ws', '@types/node']) {
     const target = existsSync(join(packageModules, dep))
       ? join(packageModules, dep)
       : join(rootNodeModules, dep);
-    if (existsSync(target)) symlinkSync(target, join(consumerModules, dep), 'dir');
+    if (!existsSync(target)) continue;
+    mkdirSync(dirname(join(consumerModules, dep)), { recursive: true });
+    symlinkSync(target, join(consumerModules, dep), 'dir');
   }
 
   writeFileSync(
@@ -404,6 +406,212 @@ describe('@canvash/collaboration-server: armazenamento de salas e entrada /testi
 
       expect(result.stdout).toBe('');
       expect(result.status, result.stderr).toBe(0);
+    });
+  }
+});
+
+// --- Adaptador `ws` (entrada /ws) ---
+
+const WS_SMOKE_BODY = `
+async function main() {
+  const server = createCollaborationServer({ storage: createMemoryRoomStorage() });
+  const listening = await listenWebSocket(server, { port: 0 });
+  if (!listening.ok) throw new Error(listening.error.message);
+  const client = new WebSocket(listening.value.url);
+  client.binaryType = 'arraybuffer';
+  const welcome = await new Promise((resolve, reject) => {
+    client.on('open', () =>
+      client.send(
+        encodeClientMessage({
+          t: 'hello',
+          v: 1,
+          provider: 'yjs',
+          documentId: 'doc-pacote',
+          sessionId: 'sessao-pacote',
+          syncState: new Uint8Array(),
+        }),
+      ),
+    );
+    client.on('message', (data) => {
+      const decoded = decodeServerMessage(new Uint8Array(data));
+      resolve(decoded.ok ? decoded.value : decoded.error);
+    });
+    client.on('error', reject);
+  });
+  await server.close();
+  await listening.value.close();
+  console.log(
+    JSON.stringify({
+      wsEntry: wsResolved.split('/@canvash/collaboration-server/')[1],
+      url: /^ws:\\/\\/127\\.0\\.0\\.1:\\d+\\/collab$/.test(listening.value.url),
+      welcome: welcome.t,
+      attach: typeof attachWebSocketServer,
+    }),
+  );
+}
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+`;
+
+const WS_TYPED_USAGE = `
+import {
+  createCollaborationServer,
+  createMemoryRoomStorage,
+  type CollaborationServer,
+} from '@canvash/collaboration-server';
+import {
+  attachWebSocketServer,
+  listenWebSocket,
+  type ListenHandle,
+  type ListenOptions,
+  type WebSocketAdapterOptions,
+} from '@canvash/collaboration-server/ws';
+import type { CollaborationError, Result } from '@canvash/collaboration';
+import { WebSocketServer } from 'ws';
+
+const server: CollaborationServer = createCollaborationServer({ storage: createMemoryRoomStorage() });
+const adapter: WebSocketAdapterOptions = { heartbeatMs: 1_000 };
+const options: ListenOptions = { port: 0, host: '127.0.0.1', path: '/collab', ...adapter };
+export const start = (): Promise<Result<ListenHandle, CollaborationError>> => listenWebSocket(server, options);
+export const detach = (wss: WebSocketServer): (() => void) => attachWebSocketServer(server, wss, adapter);
+`;
+
+describe('@canvash/collaboration-server: entrada /ws (US-S.1, US-S.9)', () => {
+  it('o tarball traz a entrada /ws e o manifesto declara import e require com os tipos de cada um', () => {
+    expect(tarballFiles).toEqual(
+      expect.arrayContaining(['dist/ws.mjs', 'dist/ws.cjs', 'dist/ws.d.mts', 'dist/ws.d.cts']),
+    );
+    const pkg = JSON.parse(
+      readFileSync(
+        join(projectDir, 'node_modules', '@canvash', 'collaboration-server', 'package.json'),
+        'utf8',
+      ),
+    ) as { exports: Record<string, unknown>; dependencies: Record<string, string> };
+    expect(pkg.exports['./ws']).toEqual({
+      import: { types: './dist/ws.d.mts', default: './dist/ws.mjs' },
+      require: { types: './dist/ws.d.cts', default: './dist/ws.cjs' },
+    });
+    expect(Object.keys(pkg.dependencies)).toEqual(expect.arrayContaining(['ws', '@types/ws']));
+  });
+
+  it('a entrada principal não carrega o ws: o núcleo funciona sem ele resolvível (C9)', () => {
+    const noWs = mkdtempSync(join(tmpdir(), 'canvash-packaging-no-ws-'));
+    try {
+      const consumerModules = join(noWs, 'node_modules');
+      mkdirSync(join(consumerModules, '@canvash'), { recursive: true });
+      for (const folder of ['core', 'collaboration', 'collaboration-yjs', 'collaboration-server']) {
+        symlinkSync(
+          join(projectDir, 'node_modules', '@canvash', folder),
+          join(consumerModules, '@canvash', folder),
+          'dir',
+        );
+      }
+      symlinkSync(join(projectDir, 'node_modules', 'yjs'), join(consumerModules, 'yjs'), 'dir');
+      symlinkSync(join(projectDir, 'node_modules', 'lib0'), join(consumerModules, 'lib0'), 'dir');
+      writeFileSync(join(noWs, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
+      const script = join(noWs, 'no-ws.mjs');
+      writeFileSync(
+        script,
+        `import { createCollaborationServer, createMemoryRoomStorage } from '@canvash/collaboration-server';\n` +
+          `let wsResolvable = true;\n` +
+          `try { await import('ws'); } catch { wsResolvable = false; }\n` +
+          `const server = createCollaborationServer({ storage: createMemoryRoomStorage(), logger: { warn() {}, error() {} } });\n` +
+          `console.log(JSON.stringify({ wsResolvable, server: typeof server.handleConnection }));\n`,
+        'utf8',
+      );
+
+      const result = spawnSync(process.execPath, [script], { cwd: noWs, encoding: 'utf8' });
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({ wsResolvable: false, server: 'function' });
+    } finally {
+      rmSync(noWs, { recursive: true, force: true });
+    }
+  });
+
+  for (const bin of nodeBinaries) {
+    it(`sobe o servidor pela porta 0 e faz o handshake de um cliente ws via ESM em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'ws-import.mjs');
+      writeFileSync(
+        scriptPath,
+        `import { createCollaborationServer, createMemoryRoomStorage } from '@canvash/collaboration-server';\n` +
+          `import { attachWebSocketServer, listenWebSocket } from '@canvash/collaboration-server/ws';\n` +
+          `import { encodeClientMessage, decodeServerMessage } from '@canvash/collaboration';\n` +
+          `import { WebSocket } from 'ws';\n` +
+          `const wsResolved = import.meta.resolve('@canvash/collaboration-server/ws');\n` +
+          WS_SMOKE_BODY,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        wsEntry: 'dist/ws.mjs',
+        url: true,
+        welcome: 'welcome',
+        attach: 'function',
+      });
+    });
+
+    it(`faz o mesmo via CJS em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'ws-require.cjs');
+      writeFileSync(
+        scriptPath,
+        `const { createCollaborationServer, createMemoryRoomStorage } = require('@canvash/collaboration-server');\n` +
+          `const { attachWebSocketServer, listenWebSocket } = require('@canvash/collaboration-server/ws');\n` +
+          `const { encodeClientMessage, decodeServerMessage } = require('@canvash/collaboration');\n` +
+          `const { WebSocket } = require('ws');\n` +
+          `const wsResolved = require.resolve('@canvash/collaboration-server/ws');\n` +
+          WS_SMOKE_BODY,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        wsEntry: 'dist/ws.cjs',
+        url: true,
+        welcome: 'welcome',
+        attach: 'function',
+      });
+    });
+  }
+
+  for (const consumer of TYPE_CONSUMERS) {
+    it(`os tipos do adaptador compilam sob ${consumer.name}`, () => {
+      const testSubdir = join(projectDir, `typecheck-ws-${consumer.name}`);
+      mkdirSync(testSubdir, { recursive: true });
+      const ext = consumer.type === 'module' ? 'mts' : 'cts';
+      writeFileSync(join(testSubdir, `consumer.${ext}`), WS_TYPED_USAGE, 'utf8');
+      const tsconfigPath = join(testSubdir, 'tsconfig.json');
+      writeFileSync(
+        tsconfigPath,
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: consumer.module,
+            moduleResolution: consumer.resolution,
+            strict: true,
+            noEmit: true,
+            skipLibCheck: false,
+            types: ['node'],
+          },
+          include: [`consumer.${ext}`],
+        }),
+        'utf8',
+      );
+
+      const result = spawnSync(process.execPath, [tsc, '-p', tsconfigPath], {
+        cwd: testSubdir,
+        encoding: 'utf8',
+      });
+
+      expect(result.stdout).toBe('');
+      expect(result.status).toBe(0);
     });
   }
 });

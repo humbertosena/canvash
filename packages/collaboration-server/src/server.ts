@@ -16,6 +16,7 @@ import {
   type ConnectionHandle,
 } from './connection.js';
 import { consoleLogger } from './logger.js';
+import { isOriginAllowed } from './origin.js';
 import {
   ROOM_RETIRED,
   compactRoom,
@@ -286,6 +287,9 @@ export function createCollaborationServer(
       })();
       return closing;
     },
+
+    isOriginAllowed: (origin: string | undefined) =>
+      isOriginAllowed(options.allowedOrigins, origin),
 
     getRoomStats(documentId: string): RoomStats | undefined {
       const room = rooms.get(documentId)?.room;

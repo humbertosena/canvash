@@ -12,6 +12,7 @@ import {
 } from '@canvash/collaboration';
 import { runAuthorize } from './authorize.js';
 import type { CollaborationServerLogger } from './logger.js';
+import { isOriginAllowed } from './origin.js';
 import { createPresenceChannel, type PresenceChannel, type PresenceOptions } from './presence.js';
 import { SUPPORTED_PROVIDER, type PendingCommit, type Room, type RoomClient } from './room.js';
 import type {
@@ -75,7 +76,7 @@ export function serveConnection(
   request: ConnectionRequest,
 ): void {
   const origin = request.headers.get('origin') ?? undefined;
-  if (context.allowedOrigins !== undefined && !context.allowedOrigins.includes(origin ?? '')) {
+  if (!isOriginAllowed(context.allowedOrigins, origin)) {
     // Antes de tudo: sem mensagem, sem prazo de hello e sem chamar o `authorize` (R19).
     context.logger.info?.('conexão recusada: origem fora de allowedOrigins', {
       reason: 'origin',

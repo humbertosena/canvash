@@ -22,7 +22,12 @@ const thresholds = Object.fromEntries(
 // o gate é o `check:diff-coverage`; os limites por pacote valem na suíte inteira (`check:full`).
 const PARTIAL_RUN = process.env.CANVASH_PARTIAL_COVERAGE === '1';
 
-const SERIAL_TESTS = ['tests/tooling/**/*.test.ts', 'tests/benchmarks/**/*.test.ts'];
+const SERIAL_TESTS = [
+  'tests/tooling/**/*.test.ts',
+  'tests/benchmarks/**/*.test.ts',
+  // Sockets e portas de verdade, em loopback: um arquivo por vez, depois da suíte.
+  'packages/collaboration-server/**/*.integration.test.ts',
+];
 
 export default defineConfig({
   test: {

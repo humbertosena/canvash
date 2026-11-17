@@ -7,6 +7,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./ws": "./src/ws/index.ts",
     "./testing": "./src/testing/index.ts",
     "./package.json": "./package.json"
   },
@@ -21,6 +22,16 @@
         "require": {
           "types": "./dist/index.d.cts",
           "default": "./dist/index.cjs"
+        }
+      },
+      "./ws": {
+        "import": {
+          "types": "./dist/ws.d.mts",
+          "default": "./dist/ws.mjs"
+        },
+        "require": {
+          "types": "./dist/ws.d.cts",
+          "default": "./dist/ws.cjs"
         }
       },
       "./testing": {
@@ -50,6 +61,8 @@
     "@canvash/collaboration": "workspace:*",
     "@canvash/collaboration-yjs": "workspace:*",
     "@canvash/core": "workspace:*",
+    "@types/ws": "^8.18.2",
+    "ws": "^8.22.2",
     "yjs": "^13.6.33"
   },
   "scripts": {

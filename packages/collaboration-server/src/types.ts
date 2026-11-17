@@ -135,6 +135,11 @@ export interface CollaborationServer {
    * devolve a mesma promessa.
    */
   close(): Promise<void>;
+  /**
+   * A regra de `allowedOrigins`, para o adaptador do meio recusar na origem (HTTP 403 no upgrade)
+   * o que o núcleo recusaria depois. Sem a lista, toda origem passa.
+   */
+  isOriginAllowed(origin: string | undefined): boolean;
   /** `undefined` quando a sala não está carregada. */
   getRoomStats(documentId: string): RoomStats | undefined;
 }
