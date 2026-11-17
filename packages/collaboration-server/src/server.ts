@@ -77,7 +77,7 @@ export function createCollaborationServer(
     clearTimeout(entry.idleTimer);
     entry.idleTimer = undefined;
     if (rooms.get(room.documentId) === entry) rooms.delete(room.documentId);
-    room.doc.destroy();
+    room.destroy();
   }
 
   /** Dá lugar a uma sala nova descarregando as ociosas. */
@@ -158,7 +158,7 @@ export function createCollaborationServer(
     if (entry === undefined || entry.room !== room) return;
     clearTimeout(entry.idleTimer);
     rooms.delete(room.documentId);
-    room.doc.destroy();
+    room.destroy();
   }
 
   const maintenance: MaintenanceOptions = {
@@ -280,7 +280,7 @@ export function createCollaborationServer(
           if (room === undefined) continue;
           room.retired = true;
           for (const client of room.dropClients()) client.close(CLOSE_GOING_AWAY, 'closing');
-          room.doc.destroy();
+          room.destroy();
         }
         rooms.clear();
         for (const handle of [...handles]) handle.close(CLOSE_GOING_AWAY, 'closing');

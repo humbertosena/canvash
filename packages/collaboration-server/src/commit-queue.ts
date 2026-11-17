@@ -22,14 +22,6 @@ export interface CommitQueueOptions {
   readonly maxBatchCommits: number;
 }
 
-/** Cópia do documento da sala, para validar sem tocar o original. */
-function cloneDoc(source: Y.Doc, extra: readonly Uint8Array[] = []): Y.Doc {
-  const copy = new Y.Doc();
-  Y.applyUpdate(copy, Y.encodeStateAsUpdate(source));
-  for (const update of extra) Y.applyUpdate(copy, update);
-  return copy;
-}
-
 /** Aplica o update na cópia e confere que o resultado projeta num documento válido (R10). */
 export function applyAndValidate(
   work: Y.Doc,
@@ -92,7 +84,7 @@ async function processBatch(
   const answers: Answer[] = [];
   const accepted: Accepted[] = [];
   const byCommitId = new Map<string, Accepted>();
-  let work = cloneDoc(room.doc);
+  let work = room.validationDoc();
   let projected: CanvasDocument | undefined;
 
   for (const pending of batch) {
@@ -108,12 +100,10 @@ async function processBatch(
     }
     const checked = applyAndValidate(work, pending.update);
     if (!checked.ok) {
-      // O update pode ter deixado a cópia pela metade: recomeça dela com o que já foi aceito.
-      work.destroy();
-      work = cloneDoc(
-        room.doc,
-        accepted.map((entry) => entry.pending.update),
-      );
+      // O update pode ter deixado a cópia pela metade: recomeça da sala com o que já foi aceito.
+      room.discardValidationDoc();
+      work = room.validationDoc();
+      for (const entry of accepted) Y.applyUpdate(work, entry.pending.update);
       answers.push({ kind: 'invalid', pending });
       continue;
     }
@@ -154,6 +144,8 @@ async function processBatch(
       room.logTail = accepted.at(-1)?.pending.commitId;
     } else {
       stored = false;
+      // A cópia tem commits que a sala não vai ter.
+      room.discardValidationDoc();
       options.logger.error('falha ao gravar o lote de commits', {
         documentId: room.documentId,
         code: appended.error.code,
@@ -161,7 +153,6 @@ async function processBatch(
       });
     }
   }
-  work.destroy();
 
   for (const answer of answers) {
     switch (answer.kind) {
@@ -205,6 +196,8 @@ async function flush(room: Room, options: CommitQueueOptions): Promise<void> {
     try {
       await processBatch(room, options, batch);
     } catch {
+      // Não dá para saber o que a cópia aplicou: ela é refeita da sala.
+      room.discardValidationDoc();
       options.logger.error('erro interno ao processar o lote de commits', {
         documentId: room.documentId,
         code: 'STORAGE_UNAVAILABLE',

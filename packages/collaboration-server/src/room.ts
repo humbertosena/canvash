@@ -75,6 +75,7 @@ export class Room {
   flushScheduled = false;
   /** Avisa que a fila esvaziou: a sala sem clientes pode esperar a descarga. */
   onSettled: (() => void) | undefined;
+  private validation: Y.Doc | undefined;
   private tail: Promise<void> = Promise.resolve();
   private queued = 0;
 
@@ -85,6 +86,33 @@ export class Room {
     /** `commitId` → recibo, para reenviar o mesmo `ack`. */
     readonly receipts: Map<string, CommitReceipt>,
   ) {}
+
+  /**
+   * A cópia em que cada commit é aplicado e validado antes de valer na sala. Fica de pé de um lote
+   * para o outro e acompanha `doc`: copiar o estado inteiro a cada lote custava cerca de 100 ms
+   * numa sala de 10.000 nós, quase todo o ACK. Só é recriada quando um commit é recusado ou uma
+   * gravação falha, que é quando ela passa a ter o que a sala não tem.
+   */
+  validationDoc(): Y.Doc {
+    if (this.validation === undefined) {
+      const copy = new Y.Doc();
+      Y.applyUpdate(copy, Y.encodeStateAsUpdate(this.doc));
+      this.validation = copy;
+    }
+    return this.validation;
+  }
+
+  /** Joga fora a cópia de validação; a próxima chamada de `validationDoc` a refaz da sala. */
+  discardValidationDoc(): void {
+    this.validation?.destroy();
+    this.validation = undefined;
+  }
+
+  /** Solta o documento da sala e a cópia de validação. */
+  destroy(): void {
+    this.discardValidationDoc();
+    this.doc.destroy();
+  }
 
   /**
    * Tira da sala os clientes que casam (todos, sem filtro), sem avisar ninguém, e os devolve. A

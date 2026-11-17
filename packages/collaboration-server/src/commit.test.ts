@@ -542,3 +542,71 @@ describe('o recibo', () => {
     });
   });
 });
+
+describe('a cópia de validação acompanha a sala (ACK dentro do gatilho)', () => {
+  it('muitos commits em sequência: o snapshot de cada lote é exatamente a sala naquele momento', async () => {
+    const { storage, server } = setup();
+    const a = await TestClient.join(server, { sessionId: 'a' });
+
+    for (let index = 0; index < 12; index += 1) {
+      a.commit(`commit-${index}`, rectangle(a, `r${index}`, index * 20));
+      await settle();
+    }
+
+    const last = storage.batches.at(-1);
+    if (last === undefined) throw new Error('nenhum lote gravado');
+    const snapshot = new Y.Doc();
+    Y.applyUpdate(snapshot, last.encodeSnapshot());
+    const late = await TestClient.join(server, { sessionId: 'late' });
+    expect(Y.encodeStateVector(snapshot)).toEqual(Y.encodeStateVector(late.doc));
+    expect(Object.keys(projectYDocToCanvasDocument(late.doc).nodes)).toHaveLength(12);
+  });
+
+  it('depois de uma falha de gravação, o commit que falhou não volta no documento nem no snapshot do lote seguinte', async () => {
+    const { storage, server } = setup();
+    const a = await TestClient.join(server, { sessionId: 'a' });
+    const b = await TestClient.join(server, { sessionId: 'b' });
+    storage.failNext('append', createCollaborationError('STORAGE_UNAVAILABLE', 'disco fora'));
+    a.commit('commit-falho', rectangle(a, 'falho', 0));
+    await settle();
+
+    // Outra sessão, que não conhece o `falho`: se a cópia de validação o guardasse, ele apareceria.
+    b.commit('commit-bom', rectangle(b, 'bom', 40));
+    await settle();
+
+    const last = storage.batches.at(-1);
+    if (last === undefined) throw new Error('nenhum lote gravado');
+    expect(Object.keys(last.document.nodes)).toEqual(['bom']);
+    const snapshot = new Y.Doc();
+    Y.applyUpdate(snapshot, last.encodeSnapshot());
+    expect(Object.keys(projectYDocToCanvasDocument(snapshot).nodes)).toEqual(['bom']);
+  });
+
+  it('com um commit inválido no meio, o snapshot do lote traz os válidos e só eles', async () => {
+    const { storage, server } = setup();
+    const a = await TestClient.join(server, { sessionId: 'a' });
+    const release = storage.hold('append');
+    a.commit('commit-0', rectangle(a, 'r0'));
+    await settle();
+
+    a.commit('commit-1', rectangle(a, 'r1', 20));
+    a.commit('commit-ruim', GARBAGE_UPDATE);
+    a.commit('commit-3', rectangle(a, 'r3', 40));
+    release();
+    await settle();
+
+    const batch = storage.batches[1];
+    if (batch === undefined) throw new Error('faltou o segundo lote');
+    const snapshot = new Y.Doc();
+    Y.applyUpdate(snapshot, batch.encodeSnapshot());
+    expect(Object.keys(projectYDocToCanvasDocument(snapshot).nodes).sort()).toEqual([
+      'r0',
+      'r1',
+      'r3',
+    ]);
+    a.commit('commit-4', rectangle(a, 'r4', 60));
+    await settle();
+    const next = storage.batches.at(-1);
+    expect(Object.keys(next?.document.nodes ?? {}).sort()).toEqual(['r0', 'r1', 'r3', 'r4']);
+  });
+});

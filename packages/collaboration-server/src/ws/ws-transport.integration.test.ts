@@ -364,25 +364,19 @@ describe('três sessões Yjs pela rede (US-W.1, US-W.2)', () => {
       const world = await startWorld();
       const a = await joinPeer(world);
       const b = await joinPeer(world);
+      const isThere = (): boolean =>
+        b.session.getPresences().some((presence) => presence.sessionId === a.session.sessionId);
       a.session.updatePresence({ cursor: { x: 5, y: 5 } });
-      await until(
-        () =>
-          b.session.getPresences().some((presence) => presence.sessionId === a.session.sessionId),
-        'a presença chegar',
-      );
+      await until(isThere, 'a presença chegar');
+      // A saída e a volta podem ser mais rápidas que a espiada: um ouvinte guarda que a sessão sumiu.
+      let sawAbsent = false;
+      b.session.onPresenceChange(() => {
+        if (!isThere()) sawAbsent = true;
+      });
 
       world.sockets.get(a.session.sessionId)?.destroy();
-      await until(
-        () =>
-          !b.session.getPresences().some((presence) => presence.sessionId === a.session.sessionId),
-        'a saída da sessão chegar aos pares',
-      );
-      await until(
-        () =>
-          b.session.getPresences().some((presence) => presence.sessionId === a.session.sessionId),
-        'a presença voltar depois do resync',
-        5_000,
-      );
+      await until(() => sawAbsent, 'a saída da sessão chegar aos pares');
+      await until(isThere, 'a presença voltar depois do resync', 5_000);
 
       expect(a.statuses).toContain('reconnecting');
     },

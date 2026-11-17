@@ -146,6 +146,8 @@ describe('ACK do servidor (medição, sem gate)', () => {
         welcomeBytes: client.welcomeBytes,
         ackP50Ms: Number(percentile(times, 0.5).toFixed(2)),
         ackP95Ms: Number(percentile(times, 0.95).toFixed(2)),
+        // O primeiro commit da sala monta a cópia de validação: é o máximo.
+        ackMaxMs: Number(Math.max(...times).toFixed(2)),
       };
       console.log(`MEDIÇÃO ack-arquivo ${JSON.stringify(result)}`);
       expect(result.ackP95Ms).toBeGreaterThan(0);
