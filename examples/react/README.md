@@ -62,6 +62,28 @@ A página usa `<CanvasSection>`: o canvas ocupa a tela inteira e a interface flu
 - `?collab=true`: liga a colaboração em tempo real (Yjs) entre abas **deste** exemplo. Cada exemplo
   roda em uma origem própria, então abas de exemplos diferentes não colaboram entre si; o botão
   "Abrir Nova Aba" abre outra aba do mesmo exemplo.
+- `?collab=true&server=ws://127.0.0.1:4321/collab`: em vez do canal entre abas, a sala mora no
+  servidor de colaboração em rede (`@canvash/collaboration-server`), pelo `createWebSocketTransport`.
+  Abas, janelas e navegadores diferentes passam a editar o mesmo desenho; a sala fica gravada em
+  disco pelo servidor, e a conexão volta sozinha depois de uma queda (o texto de colaboração mostra
+  "Reconectando…"). Só vale WebSocket sem TLS em `127.0.0.1`, `localhost` ou `[::1]`; qualquer outro
+  endereço é ignorado e o exemplo usa o canal entre abas. Se o servidor não estiver de pé, o
+  compartilhamento não liga e o texto mostra "sem servidor".
+
+## Colaboração em rede neste exemplo
+
+Num terminal, suba o servidor de desenvolvimento a partir do fonte do repositório (a CLI
+compilada só roda instalada por tarball, como no [guia](../../docs/colaboracao-em-rede.md)):
+
+```bash
+cd packages/collaboration-server
+../../node_modules/.bin/jiti src/cli.ts --port 4321 --data /tmp/canvash-salas --origin http://127.0.0.1:5174
+```
+
+Em outro, na raiz, `pnpm dev:react`, e abra duas abas em
+`http://127.0.0.1:5174/?collab=true&server=ws://127.0.0.1:4321/collab`. `--origin` limita o
+servidor às páginas deste exemplo; sem ele qualquer origem é aceita. Cada página nasce com um nome
+próprio ("React XYZ") e o servidor de desenvolvimento não autentica ninguém.
 
 ## Isolamento
 

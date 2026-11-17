@@ -128,4 +128,4 @@ O núcleo só conhece uma `ServerConnection` (`send`, `close`, `onFrame`, `onClo
 - Padrões do servidor: 50 clientes por sala, 1000 salas carregadas, sala ociosa descarregada em 60 s, quadro de até 32 MiB, presença de até 16 KiB e 20 por segundo por sessão. Tudo configurável.
 - Medido (Apple M4 Pro, Node 26.0.0, 2026-11-17): numa sala de 10.000 nós o ACK tem p50 de 33 ms e p95 de 43 ms com armazenamento em arquivo, o `welcome` pesa 3,6 MiB, e a reprojeção no cliente leva p95 de 60 ms. Cada sala carregada guarda duas cópias do documento na memória.
 - Sem TLS, autenticação ou limite de taxa de conexões no servidor de referência: isso é do host (proxy reverso com `wss://`, o seu `authorize`).
-- Ainda não há persistência offline, hook React nem demo de colaboração em rede: são os módulos seguintes do mapa.
+- O exemplo React tem um modo de rede opcional (`?server=`, só para endereços locais; ver o README em `examples/react`). Ainda não há persistência offline nem hook React: são os módulos seguintes do mapa.
