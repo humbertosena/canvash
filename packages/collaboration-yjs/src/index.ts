@@ -28,3 +28,10 @@ export {
 } from './transport.js';
 export { YjsCollaborationSession, type PendingCommit } from './session.js';
 export { YjsCollaborationProvider, type YjsProviderOptions } from './provider.js';
+export {
+  createWebSocketTransport,
+  type WebSocketConstructorLike,
+  type WebSocketEventLike,
+  type WebSocketLike,
+  type WebSocketTransportOptions,
+} from './ws-transport.js';

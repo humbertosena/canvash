@@ -272,6 +272,16 @@ async function main() {
     await contractCase.run();
     passed += 1;
   }
+  const wsTransport = createWebSocketTransport({ url: 'http://nao-e-websocket' })({
+    documentId: 'doc',
+    sessionId: 'sessao',
+  });
+  const wsOpen = await wsTransport.open(() => ({
+    provider: 'yjs',
+    documentId: 'doc',
+    sessionId: 'sessao',
+    syncState: new Uint8Array(),
+  }));
   const invalid = encodeCanvasDocumentAsYjsState({ schemaVersion: 1 });
   console.log(
     JSON.stringify({
@@ -280,6 +290,8 @@ async function main() {
       skipped: cases.filter((contractCase) => contractCase.skipped !== undefined).length,
       passed: passed === cases.length,
       seedRefusal: !invalid.ok && invalid.error.code,
+      wsFactory: typeof createWebSocketTransport,
+      wsRefusal: !wsOpen.ok && wsOpen.error.details.reason,
       projection: typeof projectYjsStateToCanvasDocument,
     }),
   );
@@ -292,7 +304,7 @@ main().catch((error) => {
 
 const NETWORK_MAIN_NAMES =
   'CollaborativeServerEmulator, DeterministicTransportHub, createMemoryTransport, ' +
-  'encodeCanvasDocumentAsYjsState, projectYjsStateToCanvasDocument';
+  'createWebSocketTransport, encodeCanvasDocumentAsYjsState, projectYjsStateToCanvasDocument';
 
 const NETWORK_TYPED_USAGE = `
 import {
@@ -300,6 +312,10 @@ import {
   createMemoryTransport,
   encodeCanvasDocumentAsYjsState,
   projectYjsStateToCanvasDocument,
+  createWebSocketTransport,
+  type WebSocketConstructorLike,
+  type WebSocketLike,
+  type WebSocketTransportOptions,
   CollaborativeServerEmulator,
   DeterministicTransportHub,
   type LegacyTransportHub,
@@ -318,6 +334,20 @@ export const legacy: LegacyTransportHub = hub;
 export const createTransport: CreateTransport = createMemoryTransport(hub);
 export const options: YjsProviderOptions = { createTransport };
 export const provider = new YjsCollaborationProvider(options);
+
+export const wsOptions: WebSocketTransportOptions = {
+  url: 'wss://exemplo.test/collab',
+  allowInsecure: false,
+  getCredentials: async () => ({ token: 'abc' }),
+  openTimeoutMs: 10_000,
+  requestTimeoutMs: 30_000,
+  backoff: { initialMs: 500, maxMs: 30_000, factor: 2 },
+  maxFrameBytes: 1_024,
+  presenceBackpressureBytes: 1_024,
+};
+export const wsCreate: CreateTransport = createWebSocketTransport(wsOptions);
+export const wsProvider = new YjsCollaborationProvider({ createTransport: wsCreate });
+export type WsPieces = [WebSocketConstructorLike, WebSocketLike];
 
 export function seed(document: CanvasDocument): Result<Uint8Array, CollaborationError> {
   return encodeCanvasDocumentAsYjsState(document);
@@ -339,6 +369,8 @@ describe('@canvash/collaboration-yjs: exports da colaboração em rede (US-P.8, 
     skipped: 0,
     passed: true,
     seedRefusal: 'INVALID_DOCUMENT',
+    wsFactory: 'function',
+    wsRefusal: 'invalid_url',
     projection: 'function',
   };
 
