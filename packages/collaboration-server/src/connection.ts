@@ -12,7 +12,7 @@ import {
 } from '@canvash/collaboration';
 import { runAuthorize } from './authorize.js';
 import type { CollaborationServerLogger } from './logger.js';
-import { SUPPORTED_PROVIDER, type Room, type RoomClient } from './room.js';
+import { SUPPORTED_PROVIDER, type PendingCommit, type Room, type RoomClient } from './room.js';
 import type {
   AuthorizeRequest,
   AuthorizeResult,
@@ -46,6 +46,8 @@ export interface ConnectionContext {
   getRoom(documentId: string): Promise<Result<Room, CollaborationError>>;
   /** A conexão larga a sala: sem clientes, ela passa a esperar a descarga por ociosidade. */
   releaseRoom(room: Room): void;
+  /** Entrega um commit à fila da sala. */
+  submitCommit(room: Room, pending: PendingCommit): void;
 }
 
 type Phase = 'awaiting-hello' | 'joining' | 'joined' | 'closed';
@@ -240,6 +242,7 @@ export function serveConnection(
         access,
         ...(user === undefined ? {} : { user }),
         send,
+        sendFrame,
         close: closeWith,
       };
       room = joined;
@@ -254,6 +257,36 @@ export function serveConnection(
       // Quem não chegou a entrar deixa a sala para a descarga por ociosidade.
       if (client === undefined) context.releaseRoom(joined);
     }
+  }
+
+  function rejectCommit(id: number, code: CollaborationErrorCode, message: string): void {
+    send({ t: 'error', id, code, message, fatal: false });
+  }
+
+  function handleCommit(message: Extract<ClientMessage, { t: 'commit' }>): void {
+    if (room === undefined || client === undefined) return;
+    if (client.access === 'read') {
+      return rejectCommit(message.id, 'UNAUTHORIZED', 'Esta sessão só tem acesso de leitura.');
+    }
+    if (message.roomEpoch !== room.roomEpoch) {
+      return rejectCommit(
+        message.id,
+        'ROOM_EPOCH_MISMATCH',
+        `Room epoch incompatível: esperado "${message.roomEpoch}", atual no servidor "${room.roomEpoch}".`,
+      );
+    }
+    const known = room.receipts.get(message.commitId);
+    if (known !== undefined) {
+      // ACK perdido: o mesmo recibo, sem aplicar nem repassar de novo (COLLAB-13).
+      send({ t: 'ack', id: message.id, receipt: known });
+      return;
+    }
+    context.submitCommit(room, {
+      client,
+      id: message.id,
+      commitId: message.commitId,
+      update: message.update,
+    });
   }
 
   function route(message: ClientMessage): void {
@@ -277,6 +310,9 @@ export function serveConnection(
         }
         return;
       }
+      case 'commit':
+        handleCommit(message);
+        return;
       case 'bye':
         closeWith(CLOSE_NORMAL, 'bye');
         return;

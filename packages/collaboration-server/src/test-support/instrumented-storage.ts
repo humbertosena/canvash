@@ -1,6 +1,6 @@
 import type { CollaborationError, Result } from '@canvash/collaboration';
 import { createMemoryRoomStorage } from '../storage-memory.js';
-import type { RoomStorage } from '../storage.js';
+import type { AppendBatch, RoomStorage } from '../storage.js';
 
 export type StorageMethod = 'load' | 'create' | 'append' | 'compact' | 'reset';
 
@@ -12,8 +12,13 @@ export interface InstrumentedStorage extends RoomStorage {
   readonly log: Array<{ readonly method: StorageMethod; readonly documentId: string }>;
   /** Faz a próxima chamada do método devolver este erro, sem tocar os dados. */
   failNext(method: StorageMethod, error: CollaborationError, times?: number): void;
-  /** Segura as chamadas do método até `release()`; devolve a função que solta. */
-  hold(method: StorageMethod): () => void;
+  /** Lotes recebidos por `append`, em ordem. */
+  readonly batches: AppendBatch[];
+  /**
+   * Segura as chamadas do método (só as de `documentId`, se dado) até a função devolvida ser
+   * chamada.
+   */
+  hold(method: StorageMethod, documentId?: string): () => void;
 }
 
 /** Armazenamento em memória que conta chamadas, falha sob comando e pode segurar chamadas. */
@@ -29,7 +34,10 @@ export function createInstrumentedStorage(
   };
   const log: Array<{ method: StorageMethod; documentId: string }> = [];
   const failures = new Map<StorageMethod, { error: CollaborationError; times: number }>();
-  const holds = new Map<StorageMethod, Promise<void>>();
+  const batches: AppendBatch[] = [];
+  const holds = new Map<string, Promise<void>>();
+  const holdKey = (method: StorageMethod, documentId?: string): string =>
+    `${method}:${documentId ?? '*'}`;
 
   async function run<T>(
     method: StorageMethod,
@@ -38,7 +46,7 @@ export function createInstrumentedStorage(
   ): Promise<Result<T, CollaborationError>> {
     calls[method] += 1;
     log.push({ method, documentId });
-    const held = holds.get(method);
+    const held = holds.get(holdKey(method, documentId)) ?? holds.get(holdKey(method));
     if (held !== undefined) await held;
     const failure = failures.get(method);
     if (failure !== undefined && failure.times > 0) {
@@ -52,25 +60,31 @@ export function createInstrumentedStorage(
     inner,
     calls,
     log,
+    batches,
     failNext(method, error, times = 1) {
       failures.set(method, { error, times });
     },
-    hold(method) {
+    hold(method, documentId) {
+      const key = holdKey(method, documentId);
       let release: () => void = () => undefined;
       holds.set(
-        method,
+        key,
         new Promise<void>((resolve) => {
           release = resolve;
         }),
       );
       return () => {
-        holds.delete(method);
+        holds.delete(key);
         release();
       };
     },
     load: (documentId) => run('load', documentId, () => inner.load(documentId)),
     create: (documentId, room) => run('create', documentId, () => inner.create(documentId, room)),
-    append: (documentId, batch) => run('append', documentId, () => inner.append(documentId, batch)),
+    append: (documentId, batch) =>
+      run('append', documentId, () => {
+        batches.push(batch);
+        return inner.append(documentId, batch);
+      }),
     compact: (documentId, snapshot, through, options) =>
       run('compact', documentId, () => inner.compact(documentId, snapshot, through, options)),
     reset: (documentId, room) => run('reset', documentId, () => inner.reset(documentId, room)),

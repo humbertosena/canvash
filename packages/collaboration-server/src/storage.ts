@@ -26,7 +26,10 @@ export interface AppendBatch {
   readonly commits: readonly StoredCommit[];
   /** Documento projetado e validado depois do lote, com o `id` original. */
   readonly document: CanvasDocument;
-  /** Estado Yjs completo depois do lote. Só é calculado quando é chamado. */
+  /**
+   * Estado Yjs completo depois do lote. Só é calculado quando é chamado, e só vale durante a
+   * chamada de `append`.
+   */
   encodeSnapshot(): Uint8Array;
 }
 

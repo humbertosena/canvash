@@ -23,12 +23,31 @@ export interface RoomClient {
   readonly user?: { readonly id: string; readonly name?: string };
   /** Manda uma mensagem. `false` quando a conexão não aceitou. */
   send(message: ServerMessage): boolean;
+  /** Manda um quadro já codificado: um `update` para vários clientes é codificado uma vez só. */
+  sendFrame(frame: Uint8Array): boolean;
   /** Fecha a conexão do cliente, sem esperar por nada. */
   close(code: number, reason: string): void;
 }
 
+/** Um commit esperando na fila da sala. */
+export interface PendingCommit {
+  readonly client: RoomClient;
+  /** O `id` da mensagem, para o `ack` ou o `error` voltar a quem mandou. */
+  readonly id: number;
+  readonly commitId: string;
+  readonly update: Uint8Array;
+}
+
 export class Room {
   readonly clients = new Map<string, RoomClient>();
+  /** Commits que chegaram e ainda não entraram num lote. */
+  readonly pending: PendingCommit[] = [];
+  /** Há um lote de commits agendado na fila. */
+  flushScheduled = false;
+  /** Avisa que a fila esvaziou: a sala sem clientes pode esperar a descarga. */
+  onSettled: (() => void) | undefined;
+  private tail: Promise<void> = Promise.resolve();
+  private queued = 0;
 
   constructor(
     readonly documentId: string,
@@ -71,6 +90,27 @@ export class Room {
 
   serverSyncState(): Uint8Array {
     return Y.encodeStateVector(this.doc);
+  }
+
+  /** A sala tem trabalho na fila ou em andamento. */
+  get busy(): boolean {
+    return this.queued > 0;
+  }
+
+  /** Roda a tarefa depois de tudo o que já está na fila da sala, uma por vez. */
+  enqueue<T>(task: () => Promise<T>): Promise<T> {
+    this.queued += 1;
+    const run = this.tail.then(task);
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    const done = (): void => {
+      this.queued -= 1;
+      if (this.queued === 0) this.onSettled?.();
+    };
+    run.then(done, done);
+    return run;
   }
 }
 

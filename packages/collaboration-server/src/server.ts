@@ -6,9 +6,10 @@ import {
   type Result,
 } from '@canvash/collaboration';
 import { randomUUID } from 'node:crypto';
+import { submitCommit, type CommitQueueOptions } from './commit-queue.js';
 import { CLOSE_FATAL, serveConnection, type ConnectionContext } from './connection.js';
 import { consoleLogger } from './logger.js';
-import { openRoom, type Room } from './room.js';
+import { openRoom, type PendingCommit, type Room } from './room.js';
 import type {
   CollaborationServer,
   CollaborationServerOptions,
@@ -21,6 +22,7 @@ const DEFAULT_HELLO_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_CLIENTS_PER_ROOM = 50;
 const DEFAULT_MAX_ROOMS = 1000;
 const DEFAULT_ROOM_IDLE_MS = 60_000;
+const DEFAULT_MAX_BATCH_COMMITS = 64;
 
 interface RoomEntry {
   readonly opening: Promise<Result<Room, CollaborationError>>;
@@ -51,7 +53,7 @@ export function createCollaborationServer(
   /** Tira a sala da memória. Só a de um carregamento que terminou e está sem clientes. */
   function unload(entry: RoomEntry): void {
     const room = entry.room;
-    if (room === undefined || room.clients.size > 0) return;
+    if (room === undefined || room.clients.size > 0 || room.busy) return;
     clearTimeout(entry.idleTimer);
     entry.idleTimer = undefined;
     if (rooms.get(room.documentId) === entry) rooms.delete(room.documentId);
@@ -101,6 +103,8 @@ export function createCollaborationServer(
       opening: openRoom(documentId, { storage: options.storage, createEpoch }).then((opened) => {
         if (opened.ok) {
           entry.room = opened.value;
+          // Quando a fila esvazia com a sala sem clientes, começa o prazo da descarga.
+          opened.value.onSettled = () => releaseRoom(opened.value);
           return opened;
         }
         // Sala que não abriu não fica registrada: a próxima conexão tenta de novo.
@@ -115,10 +119,17 @@ export function createCollaborationServer(
   /** Chamada quando uma conexão larga a sala: sem clientes, começa o prazo da descarga. */
   function releaseRoom(room: Room): void {
     const entry = rooms.get(room.documentId);
-    if (entry === undefined || entry.room !== room || room.clients.size > 0) return;
+    if (entry === undefined || entry.room !== room || room.clients.size > 0 || room.busy) return;
     clearTimeout(entry.idleTimer);
     entry.idleTimer = setTimeout(() => unload(entry), roomIdleMs);
   }
+
+  const commitQueue: CommitQueueOptions = {
+    storage: options.storage,
+    logger,
+    now: options.now ?? Date.now,
+    maxBatchCommits: options.maxBatchCommits ?? DEFAULT_MAX_BATCH_COMMITS,
+  };
 
   const context: ConnectionContext = {
     maxFrameBytes: options.maxFrameBytes ?? DEFAULT_MAX_FRAME_BYTES,
@@ -130,6 +141,7 @@ export function createCollaborationServer(
     authorize: options.authorize,
     getRoom,
     releaseRoom,
+    submitCommit: (room: Room, pending: PendingCommit) => submitCommit(room, commitQueue, pending),
   };
 
   return {
