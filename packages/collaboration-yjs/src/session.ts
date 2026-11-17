@@ -10,6 +10,7 @@ import {
   type CommitReceipt,
   type ConnectOptions,
   type CreateTransport,
+  type PendingSummary,
   type PresenceUpdate,
   type RemotePresence,
   type Result,
@@ -51,6 +52,9 @@ import {
 import type { TransportMessage } from './legacy-message.js';
 import { projectYDocToCanvasDocument } from './projection.js';
 import { createCollaborativeUndoManager, type CollaborativeUndoManager } from './undo.js';
+
+/** Quantos recibos `getCommitReceipts()` guarda quando o host não informa um limite. */
+const DEFAULT_RECEIPT_HISTORY_LIMIT = 1_000;
 
 /** Quantos traços perdidos a sessão guarda para recuperação. */
 const MAX_LOST_INK_STROKES = 200;
@@ -161,6 +165,10 @@ export class YjsCollaborationSession implements CollaborationSession {
     (status: SessionStatus, error?: CollaborationError) => void
   >();
   private readonly commitReceiptListeners = new Set<(receipt: CommitReceipt) => void>();
+  private readonly pendingListeners = new Set<(pending: PendingSummary) => void>();
+  /** O último resumo de pendências avisado: só há novo aviso quando ele muda. */
+  private lastPending: PendingSummary = { count: 0, bytes: 0 };
+  private readonly receiptHistoryLimit: number;
 
   private isApplyingRemote = false;
   private isDestroyed = false;
@@ -220,6 +228,12 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.section = options.section;
     this.roomEpoch = welcome?.roomEpoch ?? options.roomEpoch ?? 'epoch-1';
     this.credentials = options.credentials;
+    this.receiptHistoryLimit = Math.max(
+      1,
+      Math.floor(options.receiptHistoryLimit ?? DEFAULT_RECEIPT_HISTORY_LIMIT),
+    );
+    // Registrado antes de qualquer transição, para o host ver também a primeira.
+    if (options.onStatusChange) this.statusListeners.add(options.onStatusChange);
     this._access = welcome?.access ?? 'write';
     this.serverSyncState =
       welcome?.serverSyncState ??
@@ -378,6 +392,41 @@ export class YjsCollaborationSession implements CollaborationSession {
 
   getCommitReceipts(): readonly CommitReceipt[] {
     return [...this.receipts];
+  }
+
+  getPending(): PendingSummary {
+    return {
+      // O conteúdo que ficou fora da fila conta como uma pendência, sem bytes conhecidos.
+      count: this.pendingCommits.length + (this.divergent ? 1 : 0),
+      bytes: this.pendingCommits.reduce((total, pending) => total + pending.update.byteLength, 0),
+    };
+  }
+
+  onPendingChange(listener: (pending: PendingSummary) => void): () => void {
+    this.pendingListeners.add(listener);
+    return () => {
+      this.pendingListeners.delete(listener);
+    };
+  }
+
+  /** Avisa os ouvintes de pendências, se o resumo mudou desde o último aviso. */
+  private notifyPending(): void {
+    if (this.isDestroyed) return;
+    const current = this.getPending();
+    if (current.count === this.lastPending.count && current.bytes === this.lastPending.bytes) {
+      return;
+    }
+    this.lastPending = current;
+    for (const listener of [...this.pendingListeners]) listener(current);
+  }
+
+  /** Guarda o recibo, dentro do limite do histórico, e avisa quem espera por ele. */
+  private recordReceipt(receipt: CommitReceipt): void {
+    this.receipts.push(receipt);
+    if (this.receipts.length > this.receiptHistoryLimit) {
+      this.receipts.splice(0, this.receipts.length - this.receiptHistoryLimit);
+    }
+    for (const listener of [...this.commitReceiptListeners]) listener(receipt);
   }
 
   disconnect(): void {
@@ -574,9 +623,9 @@ export class YjsCollaborationSession implements CollaborationSession {
         this.pendingCommits = this.pendingCommits.filter((p) => !covered.has(p.commitId));
         // O servidor passou a ter, no mínimo, tudo o que o documento local tinha no envio.
         this.serverSyncState = sentState;
-        this.receipts.push(res.value);
-        for (const l of this.commitReceiptListeners) l(res.value);
         if (this.changesSinceReconcile === 0) this.divergent = false;
+        this.recordReceipt(res.value);
+        this.notifyPending();
       }
     } finally {
       this.reconciling = false;
@@ -676,9 +725,11 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.undoManager.destroy();
     this.ydoc.destroy();
 
+    // O `disconnected` final chega a quem ouve antes de os ouvintes serem soltos.
+    if (this._status !== 'disconnected') this.setStatus('disconnected');
     this.statusListeners.clear();
     this.commitReceiptListeners.clear();
-    this.setStatus('disconnected');
+    this.pendingListeners.clear();
   }
 
   onStatusChange(
@@ -1146,6 +1197,7 @@ export class YjsCollaborationSession implements CollaborationSession {
           },
         ),
       );
+      this.notifyPending();
       if (this.pendingCommits.length === 0 && this.canSend()) void this.track(this.reconcile());
       return;
     }
@@ -1155,6 +1207,7 @@ export class YjsCollaborationSession implements CollaborationSession {
     const commitId = `commit-${this.sessionId}-${crypto.randomUUID()}`;
     const pending: PendingCommit = { commitId, update, timestamp: Date.now() };
     this.pendingCommits.push(pending);
+    this.notifyPending();
 
     if (this._status === 'connected') {
       const res = await this.track(this.transport.commit(commitId, update, this.roomEpoch));
@@ -1267,10 +1320,8 @@ export class YjsCollaborationSession implements CollaborationSession {
     const before = this.pendingCommits.length;
     this.pendingCommits = this.pendingCommits.filter((p) => p.commitId !== receipt.commitId);
     if (this.pendingCommits.length === before) return;
-    this.receipts.push(receipt);
-    for (const l of this.commitReceiptListeners) {
-      l(receipt);
-    }
+    this.recordReceipt(receipt);
+    this.notifyPending();
     // A fila esvaziou com o enlace aberto: é a hora de levar o que ficou fora dela.
     if (this.divergent && this.pendingCommits.length === 0 && this.canSend()) {
       void this.track(this.reconcile());

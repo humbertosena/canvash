@@ -3,6 +3,17 @@ import type { CollaborationError } from './errors.js';
 
 export type SessionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
 
+/** O que o servidor deixa a sessão fazer na sala. */
+export type RoomAccess = 'write' | 'read';
+
+/** O que ainda não tem confirmação durável do servidor. */
+export interface PendingSummary {
+  /** Commits locais ainda sem recibo durável, inclusive os recusados pelo servidor. */
+  readonly count: number;
+  /** Soma dos bytes desses commits, a mesma conta do limite de backlog. */
+  readonly bytes: number;
+}
+
 export interface CollaborationCredentials {
   readonly token?: string;
   readonly [key: string]: unknown;
@@ -86,6 +97,13 @@ export interface ConnectOptions {
   readonly presenceTimeoutMs?: number;
   /** Chamado quando uma presença recebida é inválida e foi descartada. */
   readonly onPresenceError?: (violation: PresenceViolation) => void;
+  /**
+   * Ouvinte registrado antes do handshake: recebe `connecting`, o resultado da entrada e tudo o
+   * que vier depois, inclusive o `disconnected` final de `leave()` e `destroy()`.
+   */
+  readonly onStatusChange?: (status: SessionStatus, error?: CollaborationError) => void;
+  /** Quantos recibos `getCommitReceipts()` guarda; os mais antigos saem. Padrão: 1 000. */
+  readonly receiptHistoryLimit?: number;
 }
 
 export interface CollaborationSession {
@@ -93,6 +111,8 @@ export interface CollaborationSession {
   readonly sessionId: string;
   readonly roomEpoch: string;
   readonly documentId: string;
+  /** Acesso que o servidor concedeu no último handshake. */
+  readonly access: RoomAccess;
 
   /** Atualiza o estado efêmero de presença do usuário local com limitação de taxa (COLLAB-05). */
   updatePresence(update: PresenceUpdate): void;
@@ -100,8 +120,17 @@ export interface CollaborationSession {
   /** Obtém a lista atual de participantes remotos ativos com presença não expirada. */
   getPresences(): readonly RemotePresence[];
 
-  /** Obtém os recibos de commits confirmados pelo servidor. */
+  /** Obtém os recibos de commits confirmados pelo servidor, os mais recentes. */
   getCommitReceipts(): readonly CommitReceipt[];
+
+  /**
+   * O que ainda não tem confirmação durável. Zero pendências com a sessão `connected` significa
+   * que tudo o que foi editado aqui está gravado no servidor.
+   */
+  getPending(): PendingSummary;
+
+  /** Registra listener chamado a cada mudança de `getPending()`. */
+  onPendingChange(listener: (pending: PendingSummary) => void): () => void;
 
   /** Suspende o transporte temporariamente preservando documento, CRDT e histórico. */
   disconnect(): void;

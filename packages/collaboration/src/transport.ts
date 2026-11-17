@@ -1,10 +1,10 @@
 import type { CollaborationError, Result } from './errors.js';
-import type { CollaborationCredentials, CommitReceipt } from './types.js';
+import type { CollaborationCredentials, CommitReceipt, RoomAccess } from './types.js';
+
+export type { RoomAccess } from './types.js';
 
 /** Estado do enlace, independente do status da sessão. */
 export type TransportState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
-
-export type RoomAccess = 'write' | 'read';
 
 export interface TransportHello {
   /** Provider negociado no handshake, por exemplo `'yjs'`. */

@@ -49,6 +49,7 @@ export type {
   CollaborationSession,
   CommitReceipt,
   ConnectOptions,
+  PendingSummary,
   PresenceDrag,
   PresencePoint,
   PresenceUpdate,

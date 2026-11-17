@@ -45,6 +45,8 @@ export class YjsCollaborationProvider implements CollaborationProvider {
   async connect(
     options: ConnectOptions,
   ): Promise<Result<YjsCollaborationSession, CollaborationError>> {
+    // O host vê a entrada começar antes de haver sessão.
+    options.onStatusChange?.('connecting');
     const sessionId = crypto.randomUUID();
     const transport = this.createTransport({ documentId: options.documentId, sessionId });
 
@@ -65,6 +67,7 @@ export class YjsCollaborationProvider implements CollaborationProvider {
     );
     if (!welcome.ok) {
       transport.close();
+      options.onStatusChange?.('error', welcome.error);
       return err(welcome.error);
     }
 
