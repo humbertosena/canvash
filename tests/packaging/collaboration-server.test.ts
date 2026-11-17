@@ -479,6 +479,109 @@ export const start = (): Promise<Result<ListenHandle, CollaborationError>> => li
 export const detach = (wss: WebSocketServer): (() => void) => attachWebSocketServer(server, wss, adapter);
 `;
 
+const CORE_TYPED_USAGE = `
+import {
+  createCollaborationServer,
+  createFileRoomStorage,
+  createMemoryRoomStorage,
+  type RoomStorage,
+  type ServerConnection,
+} from '@canvash/collaboration-server';
+
+declare function verifySession(
+  cookie: string | null,
+  token: string | undefined,
+): Promise<{ id: string; name: string } | undefined>;
+declare function canRead(user: { id: string }, documentId: string): Promise<boolean>;
+declare function canWrite(user: { id: string }, documentId: string): Promise<boolean>;
+
+const storage: RoomStorage = createFileRoomStorage({ directory: './rooms' });
+
+export const server = createCollaborationServer({
+  storage,
+  allowedOrigins: ['https://app.exemplo.com'],
+  authorize: async ({ documentId, sessionId, credentials, headers, context }) => {
+    void sessionId;
+    void context;
+    const user = await verifySession(headers.get('cookie'), credentials?.token);
+    if (user === undefined) return { allow: false };
+    if (!(await canRead(user, documentId))) return { allow: false, code: 'NOT_FOUND' };
+    return {
+      allow: true,
+      access: (await canWrite(user, documentId)) ? 'write' : 'read',
+      user: { id: user.id, name: user.name },
+    };
+  },
+});
+
+interface MeuSocket {
+  send(frame: Uint8Array): void;
+  close(code: number, reason?: string): void;
+  onMessage(listener: (frame: Uint8Array) => void): () => void;
+  onClose(listener: () => void): () => void;
+}
+
+export function onConnect(socket: MeuSocket, headers: Headers): void {
+  const connection: ServerConnection = {
+    send: (frame) => socket.send(frame),
+    close: (code, reason) => socket.close(code, reason),
+    onFrame: (listener) => socket.onMessage(listener),
+    onClose: (listener) => socket.onClose(listener),
+  };
+  server.handleConnection(connection, { headers });
+}
+
+export const memory = createCollaborationServer({ storage: createMemoryRoomStorage() });
+export async function operate(): Promise<number> {
+  const compacted = await server.compact('desenho-42');
+  const rotated = await server.rotateEpoch('desenho-42', { snapshot: new Uint8Array() });
+  const closed = await server.disconnect(
+    'desenho-42',
+    { userId: 'ana' },
+    { code: 'NOT_FOUND', message: 'Desenho excluído.' },
+  );
+  await server.close();
+  return Number(compacted.ok) + Number(rotated.ok) + closed;
+}
+`;
+
+describe('@canvash/collaboration-server: o exemplo do núcleo com conexão genérica compila', () => {
+  for (const consumer of TYPE_CONSUMERS) {
+    it(`sob ${consumer.name}`, () => {
+      const testSubdir = join(projectDir, `typecheck-core-${consumer.name}`);
+      mkdirSync(testSubdir, { recursive: true });
+      const ext = consumer.type === 'module' ? 'mts' : 'cts';
+      writeFileSync(join(testSubdir, `consumer.${ext}`), CORE_TYPED_USAGE, 'utf8');
+      const tsconfigPath = join(testSubdir, 'tsconfig.json');
+      writeFileSync(
+        tsconfigPath,
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: consumer.module,
+            moduleResolution: consumer.resolution,
+            strict: true,
+            noEmit: true,
+            skipLibCheck: false,
+            lib: ['ES2022', 'DOM'],
+            types: ['node'],
+          },
+          include: [`consumer.${ext}`],
+        }),
+        'utf8',
+      );
+
+      const result = spawnSync(process.execPath, [tsc, '-p', tsconfigPath], {
+        cwd: testSubdir,
+        encoding: 'utf8',
+      });
+
+      expect(result.stdout).toBe('');
+      expect(result.status).toBe(0);
+    });
+  }
+});
+
 describe('@canvash/collaboration-server: entrada /ws (US-S.1, US-S.9)', () => {
   it('o tarball traz a entrada /ws e o manifesto declara import e require com os tipos de cada um', () => {
     expect(tarballFiles).toEqual(
@@ -685,6 +788,43 @@ socket.on('message', (data) => {
 socket.on('error', (error) => { console.error(error.message); process.exit(1); });
 `;
 
+// O roteiro de docs/colaboracao-em-rede.md, com a URL vinda da CLI que o teste subiu.
+const GUIDE_SCRIPT = `
+import { createCanvasSection } from '@canvash/core';
+import { YjsCollaborationProvider, createWebSocketTransport } from '@canvash/collaboration-yjs';
+
+const url = process.argv[2];
+const open = async (user) => {
+  const provider = new YjsCollaborationProvider({
+    createTransport: createWebSocketTransport({ url }),
+  });
+  const section = createCanvasSection();
+  const connected = await provider.connect({
+    documentId: 'desenho-42',
+    section,
+    user,
+    seedEmptyRoom: false,
+  });
+  if (!connected.ok) throw new Error(connected.error.message);
+  return { section, session: connected.value };
+};
+
+const ana = await open({ id: 'ana', name: 'Ana' });
+const caio = await open({ id: 'caio', name: 'Caio' });
+ana.section.dispatch({
+  type: 'shape.create',
+  shape: { id: 'r1', type: 'rectangle', x: 10, y: 10, width: 80, height: 40, rotation: 0 },
+});
+await new Promise((resolve) => setTimeout(resolve, 600));
+console.log(JSON.stringify({
+  caioSees: Object.keys(caio.section.getSnapshot().document.nodes),
+  pending: ana.session.getPending(),
+  receipts: ana.session.getCommitReceipts().length,
+}));
+ana.session.destroy();
+caio.session.destroy();
+`;
+
 describe('@canvash/collaboration-server: CLI', () => {
   const cliPath = (): string =>
     join(projectDir, 'node_modules', '@canvash', 'collaboration-server', 'dist', 'cli.mjs');
@@ -832,6 +972,38 @@ describe('@canvash/collaboration-server: CLI', () => {
       expect(verified.epoch).toBe(committed.epoch);
       expect(verified.receipt).toEqual(committed.receipt);
       expect(readdirSync(join(dataDir, 'doc-crash'))).toContain('room.json');
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('o roteiro do guia: a CLI e dois providers com createWebSocketTransport convergem e o recibo chega', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'canvash-cli-guide-'));
+    try {
+      const { child, url } = await startCli(['--port', '0', '--data', dataDir]);
+      const script = join(projectDir, 'guide.mjs');
+      writeFileSync(script, GUIDE_SCRIPT, 'utf8');
+
+      const result = spawnSync(process.execPath, [script, url], {
+        cwd: projectDir,
+        encoding: 'utf8',
+      });
+      child.kill('SIGTERM');
+      const outcome = await exited(child);
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        caioSees: ['r1'],
+        pending: { count: 0, bytes: 0 },
+        receipts: 1,
+      });
+      expect(outcome).toEqual({ code: 0, signal: null });
+      expect(readdirSync(join(dataDir, 'desenho-42')).sort()).toEqual([
+        'log.0.bin',
+        'receipts.0.bin',
+        'room.json',
+        'snapshot.0.bin',
+      ]);
     } finally {
       rmSync(dataDir, { recursive: true, force: true });
     }

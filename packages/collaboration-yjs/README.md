@@ -2,9 +2,13 @@
 
 Provider de colaboração em tempo real do Canvash baseado em Yjs: sincronização CRDT determinística, resolução de conflitos por unidade (geometria, estilo, posicionamento, texto), histórico por origem com `Y.UndoManager`, presença por Awareness e confirmação durável de commits.
 
-## Estado desta versão
+## Transportes
 
-O provider desta versão conversa com um servidor **emulado em memória** (`CollaborativeServerEmulator` e `DeterministicTransportHub`), pensado para testes e demonstrações: várias sessões no mesmo processo, ligadas ao mesmo `YjsCollaborationProvider`. Cada provider tem o próprio servidor emulado, então abas do navegador não se enxergam sem uma ponte que você escreva (os exemplos do repositório fazem isso com `BroadcastChannel`). **Ainda não há transporte de rede**: duas máquinas não colaboram só com este pacote.
+O provider fala com a sala por um transporte, e há três jeitos de ligá-lo:
+
+- **Sem opções** (`new YjsCollaborationProvider()`): um servidor emulado em memória (`CollaborativeServerEmulator` e `DeterministicTransportHub`), para testes e demonstrações. Várias sessões no mesmo processo se enxergam; abas do navegador, não.
+- **Em rede**, com `createWebSocketTransport`: o navegador (ou o Node 22+) fala por WebSocket com o `@canvash/collaboration-server` ou com qualquer servidor do protocolo Canvash. O transporte abre, faz o handshake, correlaciona pedidos e respostas, detecta a queda e reconecta com backoff; pendências e reenvio são da sessão, que não perde commit. Ver o exemplo abaixo e o guia [`docs/colaboracao-em-rede.md`](https://github.com/humbertosena/canvash/blob/main/docs/colaboracao-em-rede.md).
+- **Transporte próprio** (SSE e POST, o WebSocket do seu framework...): implemente `CollaborationTransport` (de `@canvash/collaboration`) e passe a fábrica em `createTransport`. A entrada `@canvash/collaboration-yjs/testing` traz `transportContractCases`, a suíte de contrato que o seu transporte tem de passar; `encodeFrameAsText` e `decodeFrameFromText`, de `@canvash/collaboration`, codificam os quadros do protocolo em texto para meios que não carregam binário.
 
 ## Instalação
 
@@ -42,6 +46,35 @@ session.onPresenceChange((presences) => console.log('participantes:', presences.
 
 await session.leave();
 ```
+
+## Colaboração em rede
+
+```ts
+import { createCanvasSection } from '@canvash/core';
+import { YjsCollaborationProvider, createWebSocketTransport } from '@canvash/collaboration-yjs';
+
+const provider = new YjsCollaborationProvider({
+  createTransport: createWebSocketTransport({
+    url: 'wss://exemplo.com/collab', // ws:// só para localhost, 127.0.0.1 e ::1
+    // Chamado a cada conexão, inclusive nas reconexões: bom para token que expira.
+    getCredentials: async () => ({ token: await renovarToken() }),
+  }),
+});
+
+const section = createCanvasSection();
+const connected = await provider.connect({ documentId: 'desenho-42', section, seedEmptyRoom: false });
+if (!connected.ok) throw new Error(connected.error.message); // código tipado: UNAUTHORIZED, NOT_FOUND...
+
+const session = connected.value;
+session.onStatusChange((status, error) => {
+  // 'reconnecting' vem da rede e volta sozinho; 'error' (expulsão, acesso revogado, versão
+  // incompatível) não tenta de novo: o código do erro diz o que aconteceu.
+  console.log(status, error?.code);
+});
+session.onCommitReceipt((receipt) => console.log('gravado no servidor:', receipt.commitId));
+```
+
+As credenciais vão só no `hello` do protocolo, nunca na URL. Erros que não adianta repetir (`UNAUTHORIZED`, `NOT_FOUND`, epoch ou versão incompatíveis, sessão substituída por outra aba) encerram as tentativas e chegam à sessão com o código; falha de rede, timeout e sala cheia reconectam com backoff exponencial e jitter. Opções: `openTimeoutMs` (10 s), `requestTimeoutMs` (30 s), `backoff` (500 ms a 30 s, fator 2), `maxFrameBytes` e `presenceBackpressureBytes`.
 
 ## Depende de
 
