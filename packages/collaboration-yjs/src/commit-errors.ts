@@ -14,6 +14,10 @@ const COMMIT_ERRORS: Readonly<Record<string, { code: CollaborationErrorCode; mes
     code: 'INVALID_DOCUMENT',
     message: 'O update não é um update válido do provider',
   },
+  UNAUTHORIZED: {
+    code: 'UNAUTHORIZED',
+    message: 'A sessão tem acesso somente leitura',
+  },
   STORAGE_UNAVAILABLE: {
     code: 'STORAGE_UNAVAILABLE',
     message: 'O servidor não conseguiu gravar o commit',

@@ -13,6 +13,7 @@ import {
   type PresenceUpdate,
   type RemotePresence,
   type Result,
+  type RoomAccess,
   type SessionStatus,
   type TransportHello,
   type TransportInbound,
@@ -94,7 +95,19 @@ export interface PendingCommit {
   commitId: string;
   update: Uint8Array;
   timestamp: number;
+  /**
+   * O servidor recusou este commit com um erro que tentar de novo não resolve. Continua pendente,
+   * para o host recuperar, e só é reenviado na próxima volta do enlace ou `reconnect()`.
+   */
+  rejected?: CollaborationError;
 }
+
+/** Erros de commit que tentar de novo, na mesma conexão, não resolve. */
+const REJECTED_COMMIT_CODES: ReadonlySet<string> = new Set([
+  'INVALID_DOCUMENT',
+  'LIMIT_EXCEEDED',
+  'UNAUTHORIZED',
+]);
 
 export class YjsCollaborationSession implements CollaborationSession {
   private _status: SessionStatus = 'connecting';
@@ -113,6 +126,7 @@ export class YjsCollaborationSession implements CollaborationSession {
   private readonly createTransport: CreateTransport | null;
   private unsubscribeInbound: (() => void) | null = null;
   private unsubscribeState: (() => void) | null = null;
+  private _access: RoomAccess;
   /** Envios à espera de resposta do servidor. `leave()` espera por eles antes de responder. */
   private readonly inFlight = new Set<Promise<unknown>>();
 
@@ -183,6 +197,9 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.section = options.section;
     this.roomEpoch = welcome?.roomEpoch ?? options.roomEpoch ?? 'epoch-1';
     this.credentials = options.credentials;
+    this._access = welcome?.access ?? 'write';
+    // Quem só lê não leva o documento local para a sala: o estado dela vale, mesmo vazio.
+    const maySeed = this._access === 'write';
     this.maxOfflineBacklogBytes = options.maxOfflineBacklogBytes ?? MAX_OFFLINE_BACKLOG_BYTES;
     this.localOrigin = Symbol(`canvash-session-${sessionId}`);
 
@@ -204,7 +221,7 @@ export class YjsCollaborationSession implements CollaborationSession {
     if (initialServerSnapshot && initialServerSnapshot.length > 0) {
       Y.applyUpdate(this.ydoc, initialServerSnapshot, 'server-init');
       const projected = projectYDocToCanvasDocument(this.ydoc);
-      if (Object.keys(projected.nodes).length > 0) {
+      if (Object.keys(projected.nodes).length > 0 || !maySeed) {
         this.isApplyingRemote = true;
         try {
           this.section.replaceDocument(projected);
@@ -269,6 +286,8 @@ export class YjsCollaborationSession implements CollaborationSession {
       options.onPresenceError,
     );
 
+    if (this._access === 'read') this.section.setReadOnly(true);
+
     // Passa a ouvir o enlace; com o hub antigo, registra o cliente nele agora
     this.listenTo(this.transport);
     legacy?.attach();
@@ -294,6 +313,22 @@ export class YjsCollaborationSession implements CollaborationSession {
 
   get status(): SessionStatus {
     return this._status;
+  }
+
+  /** Acesso que o servidor concedeu no último handshake. */
+  get access(): RoomAccess {
+    return this._access;
+  }
+
+  /** Adota o acesso do handshake: leitura põe a section em somente leitura; a volta à escrita a libera. */
+  private applyAccess(access: RoomAccess): void {
+    const previous = this._access;
+    this._access = access;
+    if (access === 'read') {
+      this.section.setReadOnly(true);
+    } else if (previous === 'read') {
+      this.section.setReadOnly(false);
+    }
   }
 
   getUndoManager(): CollaborativeUndoManager {
@@ -445,6 +480,7 @@ export class YjsCollaborationSession implements CollaborationSession {
       return;
     }
     this.applyMissing(welcome.missing);
+    this.applyAccess(welcome.access);
     await this.flushPendingCommits();
     const stillCurrent = !this.isDestroyed && transport === this.transport;
     if (!stillCurrent || transport.state !== 'open' || this._status !== 'reconnecting') return;
@@ -984,16 +1020,40 @@ export class YjsCollaborationSession implements CollaborationSession {
       const res = await this.track(this.transport.commit(commitId, update, this.roomEpoch));
       if (res.ok) {
         this.confirmCommit(res.value);
-      } else if (res.error.code === 'ROOM_EPOCH_MISMATCH') {
-        this.setStatus(
-          'error',
-          createCollaborationError(
-            'ROOM_EPOCH_MISMATCH',
-            'A sala foi restaurada ou migrada para uma nova epoch incompatível (COLLAB-14)',
-          ),
-        );
+      } else {
+        this.handleCommitFailure(pending, res.error);
       }
     }
+  }
+
+  /**
+   * O que fazer com um commit que o servidor não confirmou. Ele continua pendente em todos os
+   * casos; muda só o que o host fica sabendo e se há nova tentativa.
+   */
+  private handleCommitFailure(pending: PendingCommit, error: CollaborationError): void {
+    if (this.isDestroyed) return;
+    if (error.code === 'ROOM_EPOCH_MISMATCH') {
+      this.setStatus(
+        'error',
+        createCollaborationError(
+          'ROOM_EPOCH_MISMATCH',
+          'A sala foi restaurada ou migrada para uma nova epoch incompatível (COLLAB-14)',
+        ),
+      );
+      return;
+    }
+    if (REJECTED_COMMIT_CODES.has(error.code)) {
+      // Aviso, sem transição: o enlace segue bom e os outros commits continuam saindo.
+      const details =
+        typeof error.details === 'object' && error.details !== null ? error.details : {};
+      const rejected = createCollaborationError(error.code, error.message, {
+        ...details,
+        commitId: pending.commitId,
+      });
+      pending.rejected = rejected;
+      this.setStatus(this._status, rejected);
+    }
+    // DISCONNECTED e os demais: quem muda o status é o estado do enlace, e o reenvio vem na volta.
   }
 
   /**
@@ -1016,7 +1076,11 @@ export class YjsCollaborationSession implements CollaborationSession {
       const res = await this.track(
         this.transport.commit(pending.commitId, pending.update, this.roomEpoch),
       );
-      if (res.ok) this.confirmCommit(res.value);
+      if (res.ok) {
+        this.confirmCommit(res.value);
+      } else if (pending.rejected === undefined || res.error.code !== pending.rejected.code) {
+        this.handleCommitFailure(pending, res.error);
+      }
     }
   }
 

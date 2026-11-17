@@ -209,7 +209,7 @@ export class DeterministicTransportHub {
           return;
         }
 
-        const serverRes = this.server.commitUpdate(commitId, update, clientEpoch);
+        const serverRes = this.server.commitUpdate(commitId, update, clientEpoch, sessionId);
         if (!serverRes.ok) {
           resolve({ ok: false, code: serverRes.code });
           return;

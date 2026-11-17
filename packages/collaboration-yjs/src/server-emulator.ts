@@ -46,6 +46,8 @@ export class CollaborativeServerEmulator {
   /** Estado com que a sala nasceu: o reinício parte dele e reaplica o log. */
   private readonly initialState: Uint8Array;
   private access: RoomAccess = 'write';
+  /** Acesso concedido a cada sessão no handshake: é ele que vale nos commits dela. */
+  private readonly sessionAccess = new Map<string, RoomAccess>();
   private readonly now: () => number;
 
   constructor(initialEpoch = 'epoch-1', initialDoc?: Y.Doc, options: ServerEmulatorOptions = {}) {
@@ -95,6 +97,7 @@ export class CollaborativeServerEmulator {
         ),
       );
     }
+    this.sessionAccess.set(hello.sessionId, this.access);
     return ok({
       roomEpoch: this.roomEpoch,
       access: this.access,
@@ -143,17 +146,25 @@ export class CollaborativeServerEmulator {
   }
 
   /**
-   * Grava um commit e retorna o recibo durável após persistência (COLLAB-13).
+   * Grava um commit e retorna o recibo durável após persistência (COLLAB-13). Com `sessionId`, o
+   * acesso concedido àquela sessão no handshake é imposto: leitura não grava.
    */
   commitUpdate(
     commitId: string,
     update: Uint8Array,
     clientEpoch: string,
+    sessionId?: string,
   ):
     | { ok: true; receipt: CommitReceipt }
-    | { ok: false; code: 'ROOM_EPOCH_MISMATCH' | 'CRASHED' | 'INVALID_DOCUMENT' } {
+    | {
+        ok: false;
+        code: 'ROOM_EPOCH_MISMATCH' | 'CRASHED' | 'INVALID_DOCUMENT' | 'UNAUTHORIZED';
+      } {
     if (this.isCrashed) {
       return { ok: false, code: 'CRASHED' };
+    }
+    if (sessionId !== undefined && this.sessionAccess.get(sessionId) === 'read') {
+      return { ok: false, code: 'UNAUTHORIZED' };
     }
     if (clientEpoch !== this.roomEpoch) {
       return { ok: false, code: 'ROOM_EPOCH_MISMATCH' };
@@ -226,5 +237,6 @@ export class CollaborativeServerEmulator {
     this.ydoc.destroy();
     this.log = [];
     this.receipts.clear();
+    this.sessionAccess.clear();
   }
 }
