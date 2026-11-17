@@ -1,7 +1,9 @@
 import { defineBuildConfig } from 'unbuild';
 
 export default defineBuildConfig({
-  entries: ['src/index'],
+  // Um bundle por entrada pública: a principal e a suíte de contrato do transporte, que o host
+  // importa só nos testes dele.
+  entries: ['src/index', { input: 'src/testing/index', name: 'testing' }],
   declaration: 'node16',
   sourcemap: true,
   clean: true,

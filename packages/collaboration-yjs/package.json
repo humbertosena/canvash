@@ -7,6 +7,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -20,6 +21,16 @@
         "require": {
           "types": "./dist/index.d.cts",
           "default": "./dist/index.cjs"
+        }
+      },
+      "./testing": {
+        "import": {
+          "types": "./dist/testing.d.mts",
+          "default": "./dist/testing.mjs"
+        },
+        "require": {
+          "types": "./dist/testing.d.cts",
+          "default": "./dist/testing.cjs"
         }
       },
       "./package.json": "./package.json"

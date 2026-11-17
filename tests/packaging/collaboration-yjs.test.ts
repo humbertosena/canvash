@@ -250,3 +250,195 @@ describe('@canvash/collaboration-yjs packaging contract', () => {
     }
   });
 });
+
+// --- Colaboração em rede (0.2.0): transporte em memória, semeadura e entrada /testing ---
+
+const NETWORK_SMOKE_BODY = `
+let hub = new DeterministicTransportHub(new CollaborativeServerEmulator());
+const harness = {
+  createTransport: (context) => createMemoryTransport(hub)(context),
+  dropLink: (sessionId) => {
+    hub.dropLink(sessionId);
+    setTimeout(() => hub.restoreLink(sessionId), 0);
+  },
+  failNextAppends: (_documentId, count) => hub.failNextCommits(count, 'STORAGE_UNAVAILABLE'),
+};
+const cases = transportContractCases(harness);
+
+async function main() {
+  let passed = 0;
+  for (const contractCase of cases) {
+    hub = new DeterministicTransportHub(new CollaborativeServerEmulator());
+    await contractCase.run();
+    passed += 1;
+  }
+  const invalid = encodeCanvasDocumentAsYjsState({ schemaVersion: 1 });
+  console.log(
+    JSON.stringify({
+      testingEntry: testingResolved.split('/@canvash/collaboration-yjs/')[1],
+      cases: cases.length >= 12,
+      skipped: cases.filter((contractCase) => contractCase.skipped !== undefined).length,
+      passed: passed === cases.length,
+      seedRefusal: !invalid.ok && invalid.error.code,
+      projection: typeof projectYjsStateToCanvasDocument,
+    }),
+  );
+}
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+`;
+
+const NETWORK_MAIN_NAMES =
+  'CollaborativeServerEmulator, DeterministicTransportHub, createMemoryTransport, ' +
+  'encodeCanvasDocumentAsYjsState, projectYjsStateToCanvasDocument';
+
+const NETWORK_TYPED_USAGE = `
+import {
+  YjsCollaborationProvider,
+  createMemoryTransport,
+  encodeCanvasDocumentAsYjsState,
+  projectYjsStateToCanvasDocument,
+  CollaborativeServerEmulator,
+  DeterministicTransportHub,
+  type LegacyTransportHub,
+  type YjsProviderOptions,
+} from '@canvash/collaboration-yjs';
+import {
+  transportContractCases,
+  type ContractCase,
+  type TransportContractHarness,
+} from '@canvash/collaboration-yjs/testing';
+import type { CanvasDocument } from '@canvash/core';
+import type { CollaborationError, CreateTransport, Result } from '@canvash/collaboration';
+
+const hub = new DeterministicTransportHub(new CollaborativeServerEmulator());
+export const legacy: LegacyTransportHub = hub;
+export const createTransport: CreateTransport = createMemoryTransport(hub);
+export const options: YjsProviderOptions = { createTransport };
+export const provider = new YjsCollaborationProvider(options);
+
+export function seed(document: CanvasDocument): Result<Uint8Array, CollaborationError> {
+  return encodeCanvasDocumentAsYjsState(document);
+}
+export function project(state: Uint8Array): Result<CanvasDocument, CollaborationError> {
+  return projectYjsStateToCanvasDocument(state);
+}
+
+const harness: TransportContractHarness = {
+  createTransport,
+  dropLink: (sessionId: string) => hub.dropLink(sessionId),
+};
+export const cases: readonly ContractCase[] = transportContractCases(harness);
+`;
+
+describe('@canvash/collaboration-yjs: exports da colaboração em rede (US-P.8, US-P.15)', () => {
+  const EXPECTED = {
+    cases: true,
+    skipped: 0,
+    passed: true,
+    seedRefusal: 'INVALID_DOCUMENT',
+    projection: 'function',
+  };
+
+  it('o tarball traz a entrada /testing ao lado da principal', () => {
+    expect(tarballFiles).toEqual(
+      expect.arrayContaining([
+        'dist/testing.mjs',
+        'dist/testing.cjs',
+        'dist/testing.d.mts',
+        'dist/testing.d.cts',
+      ]),
+    );
+    const pkg = JSON.parse(
+      readFileSync(
+        join(projectDir, 'node_modules', '@canvash', 'collaboration-yjs', 'package.json'),
+        'utf8',
+      ),
+    );
+    expect(pkg.exports['./testing']).toEqual({
+      import: { types: './dist/testing.d.mts', default: './dist/testing.mjs' },
+      require: { types: './dist/testing.d.cts', default: './dist/testing.cjs' },
+    });
+  });
+
+  for (const bin of nodeBinaries) {
+    it(`a suíte de contrato, importada do tarball, passa com o transporte em memória via ESM em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'network-import.mjs');
+      writeFileSync(
+        scriptPath,
+        `import { ${NETWORK_MAIN_NAMES} } from '@canvash/collaboration-yjs';\n` +
+          `import { transportContractCases } from '@canvash/collaboration-yjs/testing';\n` +
+          `const testingResolved = import.meta.resolve('@canvash/collaboration-yjs/testing');\n` +
+          NETWORK_SMOKE_BODY,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      // O stderr não é conferido: no Node 25+, o lib0 (via yjs) emite um ExperimentalWarning da
+      // Web Storage ao ser importado (dmonad/lib0#146).
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        ...EXPECTED,
+        testingEntry: 'dist/testing.mjs',
+      });
+    });
+
+    it(`a suíte de contrato, importada do tarball, passa com o transporte em memória via CJS em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'network-require.cjs');
+      writeFileSync(
+        scriptPath,
+        `const { ${NETWORK_MAIN_NAMES} } = require('@canvash/collaboration-yjs');\n` +
+          `const { transportContractCases } = require('@canvash/collaboration-yjs/testing');\n` +
+          `const testingResolved = require.resolve('@canvash/collaboration-yjs/testing');\n` +
+          NETWORK_SMOKE_BODY,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      // O stderr não é conferido: no Node 25+, o lib0 (via yjs) emite um ExperimentalWarning da
+      // Web Storage ao ser importado (dmonad/lib0#146).
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        ...EXPECTED,
+        testingEntry: 'dist/testing.cjs',
+      });
+    });
+  }
+
+  for (const consumer of TYPE_CONSUMERS) {
+    it(`transporte, semeadura e a entrada /testing compilam sob ${consumer.name}`, () => {
+      const testSubdir = join(projectDir, `typecheck-network-${consumer.name}`);
+      mkdirSync(testSubdir, { recursive: true });
+      const ext = consumer.type === 'module' ? 'mts' : 'cts';
+      writeFileSync(join(testSubdir, `consumer.${ext}`), NETWORK_TYPED_USAGE, 'utf8');
+      const tsconfigPath = join(testSubdir, 'tsconfig.json');
+      writeFileSync(
+        tsconfigPath,
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: consumer.module,
+            moduleResolution: consumer.resolution,
+            strict: true,
+            noEmit: true,
+            skipLibCheck: false,
+          },
+          include: [`consumer.${ext}`],
+        }),
+        'utf8',
+      );
+
+      const result = spawnSync(process.execPath, [tsc, '-p', tsconfigPath], {
+        cwd: testSubdir,
+        encoding: 'utf8',
+      });
+
+      expect(result.stdout).toBe('');
+      expect(result.status).toBe(0);
+    });
+  }
+});
