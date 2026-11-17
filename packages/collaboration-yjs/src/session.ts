@@ -36,6 +36,7 @@ import {
 } from '@canvash/core';
 import * as Y from 'yjs';
 import { AwarenessManager, type LocalAwarenessState } from './awareness.js';
+import { backoffDelay, DEFAULT_BACKOFF } from './backoff.js';
 import {
   getDocumentCollections,
   initYjsDocument,
@@ -127,6 +128,10 @@ export class YjsCollaborationSession implements CollaborationSession {
   private unsubscribeInbound: (() => void) | null = null;
   private unsubscribeState: (() => void) | null = null;
   private _access: RoomAccess;
+  /** Timer da próxima rodada de reenvio dos commits que o armazenamento não gravou. */
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Quantas rodadas de reenvio seguidas falharam: dá o teto da próxima espera. */
+  private retryAttempt = 0;
   /** Envios à espera de resposta do servidor. `leave()` espera por eles antes de responder. */
   private readonly inFlight = new Set<Promise<unknown>>();
 
@@ -355,6 +360,7 @@ export class YjsCollaborationSession implements CollaborationSession {
   disconnect(): void {
     if (this.isDestroyed || this._status === 'disconnected') return;
     this.setStatus('disconnected');
+    this.cancelCommitRetry();
     this.transport.close();
   }
 
@@ -439,6 +445,7 @@ export class YjsCollaborationSession implements CollaborationSession {
    */
   private failWith(error: CollaborationError): void {
     this.setStatus('error', error);
+    this.cancelCommitRetry();
     this.transport.close();
   }
 
@@ -546,6 +553,7 @@ export class YjsCollaborationSession implements CollaborationSession {
     }
 
     this.stopListening();
+    this.cancelCommitRetry();
     this.transport.close();
     this.awareness.destroy();
     this.undoManager.destroy();
@@ -1012,7 +1020,9 @@ export class YjsCollaborationSession implements CollaborationSession {
       return;
     }
 
-    const commitId = `commit-${this.sessionId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    // Identidade estável do commit, e chave da deduplicação no servidor: tem de ser única mesmo
+    // para dois commits feitos no mesmo milissegundo.
+    const commitId = `commit-${this.sessionId}-${crypto.randomUUID()}`;
     const pending: PendingCommit = { commitId, update, timestamp: Date.now() };
     this.pendingCommits.push(pending);
 
@@ -1053,7 +1063,64 @@ export class YjsCollaborationSession implements CollaborationSession {
       pending.rejected = rejected;
       this.setStatus(this._status, rejected);
     }
+    if (error.code === 'STORAGE_UNAVAILABLE') {
+      // O servidor não conseguiu gravar, mas o enlace segue bom: aviso e nova tentativa.
+      const details =
+        typeof error.details === 'object' && error.details !== null ? error.details : {};
+      this.setStatus(
+        this._status,
+        createCollaborationError(error.code, error.message, {
+          ...details,
+          commitId: pending.commitId,
+        }),
+      );
+      this.scheduleCommitRetry();
+    }
     // DISCONNECTED e os demais: quem muda o status é o estado do enlace, e o reenvio vem na volta.
+  }
+
+  /** Agenda uma rodada de reenvio, se ainda não há uma a caminho. */
+  private scheduleCommitRetry(): void {
+    if (this.retryTimer !== null || this.isDestroyed) return;
+    const delay = backoffDelay(this.retryAttempt, DEFAULT_BACKOFF, Math.random);
+    this.retryAttempt += 1;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      void this.track(this.retryPendingCommits());
+    }, delay);
+  }
+
+  private cancelCommitRetry(): void {
+    if (this.retryTimer !== null) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.retryAttempt = 0;
+  }
+
+  /**
+   * Rodada de reenvio com o enlace aberto: os commits que o armazenamento não gravou saem de novo,
+   * em ordem, pelo mesmo `commitId`. Se algum falhar outra vez, `handleCommitFailure` agenda a
+   * próxima rodada, com espera maior; uma rodada inteira com sucesso zera a espera.
+   */
+  private async retryPendingCommits(): Promise<void> {
+    // Sem enlace não há o que tentar: a volta dele reenvia todas as pendências.
+    if (this.isDestroyed || this._status !== 'connected' || this.transport.state !== 'open') {
+      this.retryAttempt = 0;
+      return;
+    }
+    let failed = false;
+    for (const pending of [...this.pendingCommits]) {
+      if (pending.rejected !== undefined) continue;
+      const res = await this.track(
+        this.transport.commit(pending.commitId, pending.update, this.roomEpoch),
+      );
+      if (res.ok) {
+        this.confirmCommit(res.value);
+      } else {
+        failed = true;
+        this.handleCommitFailure(pending, res.error);
+      }
+    }
+    if (!failed) this.retryAttempt = 0;
   }
 
   /**
