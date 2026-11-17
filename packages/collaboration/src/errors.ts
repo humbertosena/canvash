@@ -13,7 +13,8 @@ export type CollaborationErrorCode =
   | 'CONNECTION_FAILED'
   | 'DISCONNECTED'
   | 'NOT_FOUND'
-  | 'UNSUPPORTED';
+  | 'UNSUPPORTED'
+  | 'PROTOCOL_ERROR';
 
 export interface CollaborationError {
   readonly code: CollaborationErrorCode;

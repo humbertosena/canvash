@@ -35,6 +35,15 @@ export {
   type ValidatedPresence,
 } from './validate-presence.js';
 export type {
+  CollaborationTransport,
+  CreateTransport,
+  RoomAccess,
+  TransportHello,
+  TransportInbound,
+  TransportState,
+  TransportWelcome,
+} from './transport.js';
+export type {
   CollaborationCredentials,
   CollaborationProvider,
   CollaborationSession,

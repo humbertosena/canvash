@@ -1,4 +1,14 @@
-import type { CommitReceipt } from '@canvash/collaboration';
+import {
+  createCollaborationError,
+  err,
+  ok,
+  type CollaborationError,
+  type CommitReceipt,
+  type Result,
+  type RoomAccess,
+  type TransportHello,
+  type TransportWelcome,
+} from '@canvash/collaboration';
 import * as Y from 'yjs';
 import { initYjsDocument } from './crdt-schema.js';
 
@@ -9,19 +19,92 @@ export interface LogEntry {
   readonly timestamp: number;
 }
 
+export interface ServerEmulatorOptions {
+  /** Relógio do `welcome`. Padrão: `Date.now`. */
+  readonly now?: () => number;
+}
+
+/** Confere se os bytes são um update Yjs legível, sem tocar o documento da sala. */
+function isReadableUpdate(update: Uint8Array): boolean {
+  const probe = new Y.Doc();
+  try {
+    Y.applyUpdate(probe, update);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    probe.destroy();
+  }
+}
+
 export class CollaborativeServerEmulator {
   private ydoc: Y.Doc;
   private roomEpoch: string;
   private log: LogEntry[] = [];
   private readonly receipts = new Map<string, CommitReceipt>();
   private isCrashed = false;
+  /** Estado com que a sala nasceu: o reinício parte dele e reaplica o log. */
+  private readonly initialState: Uint8Array;
+  private access: RoomAccess = 'write';
+  private readonly now: () => number;
 
-  constructor(initialEpoch = 'epoch-1', initialDoc?: Y.Doc) {
+  constructor(initialEpoch = 'epoch-1', initialDoc?: Y.Doc, options: ServerEmulatorOptions = {}) {
     this.roomEpoch = initialEpoch;
     this.ydoc = initialDoc ?? new Y.Doc();
     if (!initialDoc) {
       initYjsDocument(this.ydoc, this.roomEpoch);
     }
+    this.initialState = Y.encodeStateAsUpdate(this.ydoc);
+    this.now = options.now ?? Date.now;
+  }
+
+  /** Acesso que o handshake concede às próximas conexões. Padrão: `write`. */
+  setAccess(access: RoomAccess): void {
+    this.access = access;
+  }
+
+  /**
+   * Handshake de um cliente: confere provider, credencial e epoch e devolve o que falta a ele,
+   * o vetor de estado da sala e o relógio do servidor.
+   */
+  handshake(hello: TransportHello): Result<TransportWelcome, CollaborationError> {
+    if (this.isCrashed) {
+      return err(createCollaborationError('CONNECTION_FAILED', 'Servidor fora do ar'));
+    }
+    if (hello.provider !== 'yjs') {
+      return err(
+        createCollaborationError('UNSUPPORTED', `Provider "${hello.provider}" não é o da sala`, {
+          provider: 'yjs',
+        }),
+      );
+    }
+    if (hello.credentials?.token === 'invalid_token') {
+      return err(
+        createCollaborationError(
+          'UNAUTHORIZED',
+          'Credenciais de autorização rejeitadas pelo backend',
+        ),
+      );
+    }
+    if (hello.roomEpoch !== undefined && hello.roomEpoch !== this.roomEpoch) {
+      return err(
+        createCollaborationError(
+          'ROOM_EPOCH_MISMATCH',
+          `Room epoch incompatível: esperado "${hello.roomEpoch}", atual no servidor "${this.roomEpoch}"`,
+          { clientEpoch: hello.roomEpoch, serverEpoch: this.roomEpoch },
+        ),
+      );
+    }
+    return ok({
+      roomEpoch: this.roomEpoch,
+      access: this.access,
+      missing: Y.encodeStateAsUpdate(
+        this.ydoc,
+        hello.syncState.byteLength > 0 ? hello.syncState : undefined,
+      ),
+      serverSyncState: Y.encodeStateVector(this.ydoc),
+      serverTime: this.now(),
+    });
   }
 
   getRoomEpoch(): string {
@@ -44,9 +127,9 @@ export class CollaborativeServerEmulator {
    */
   restart(): void {
     this.isCrashed = false;
-    // Reconstrói o Y.Doc a partir do log durável
+    // Reconstrói o Y.Doc a partir do estado inicial da sala e do log durável
     const newDoc = new Y.Doc();
-    initYjsDocument(newDoc, this.roomEpoch);
+    Y.applyUpdate(newDoc, this.initialState);
     for (const entry of this.log) {
       Y.applyUpdate(newDoc, entry.update);
     }
@@ -61,7 +144,9 @@ export class CollaborativeServerEmulator {
     commitId: string,
     update: Uint8Array,
     clientEpoch: string,
-  ): { ok: true; receipt: CommitReceipt } | { ok: false; code: 'ROOM_EPOCH_MISMATCH' | 'CRASHED' } {
+  ):
+    | { ok: true; receipt: CommitReceipt }
+    | { ok: false; code: 'ROOM_EPOCH_MISMATCH' | 'CRASHED' | 'INVALID_DOCUMENT' } {
     if (this.isCrashed) {
       return { ok: false, code: 'CRASHED' };
     }
@@ -73,6 +158,10 @@ export class CollaborativeServerEmulator {
     const existing = this.receipts.get(commitId);
     if (existing) {
       return { ok: true, receipt: existing };
+    }
+
+    if (!isReadableUpdate(update)) {
+      return { ok: false, code: 'INVALID_DOCUMENT' };
     }
 
     // Aplica no documento do servidor e grava no log durável

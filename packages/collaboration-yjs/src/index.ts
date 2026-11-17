@@ -12,7 +12,12 @@ export {
 export { projectYDocToCanvasDocument, RECOVERY_LAYER_ID } from './projection.js';
 export { AwarenessManager, type LocalAwarenessState } from './awareness.js';
 export { createCollaborativeUndoManager, type CollaborativeUndoManager } from './undo.js';
-export { CollaborativeServerEmulator, type LogEntry } from './server-emulator.js';
+export {
+  CollaborativeServerEmulator,
+  type LogEntry,
+  type ServerEmulatorOptions,
+} from './server-emulator.js';
+export { createMemoryTransport } from './memory-transport.js';
 export {
   DeterministicTransportHub,
   type TransportMessage,

@@ -1,4 +1,10 @@
-import type { CommitReceipt } from '@canvash/collaboration';
+import type {
+  CollaborationError,
+  CommitReceipt,
+  Result,
+  TransportHello,
+  TransportWelcome,
+} from '@canvash/collaboration';
 import type { LocalAwarenessState } from './awareness.js';
 import type { CollaborativeServerEmulator } from './server-emulator.js';
 
@@ -21,6 +27,8 @@ export interface TransportNetworkOptions {
 export class DeterministicTransportHub {
   private clients = new Map<string, (msg: TransportMessage) => void>();
   private networkOptions: TransportNetworkOptions = {};
+  /** Enlaces abertos por `createMemoryTransport`: `sessionId` → aviso de substituição. */
+  private readonly links = new Map<string, () => void>();
 
   constructor(private readonly server: CollaborativeServerEmulator) {}
 
@@ -30,6 +38,33 @@ export class DeterministicTransportHub {
 
   registerClient(sessionId: string, onMessage: (msg: TransportMessage) => void): void {
     this.clients.set(sessionId, onMessage);
+  }
+
+  /** Handshake de um enlace: quem responde é o servidor emulado. */
+  handshake(hello: TransportHello): Result<TransportWelcome, CollaborationError> {
+    return this.server.handshake(hello);
+  }
+
+  /**
+   * Liga um enlace já aceito no handshake. Se o mesmo `sessionId` já tinha um, o antigo é avisado
+   * por `onReplaced` e perde o lugar, sem anúncio de saída: a sessão continua viva no enlace novo.
+   */
+  attachLink(
+    sessionId: string,
+    onMessage: (msg: TransportMessage) => void,
+    onReplaced: () => void,
+  ): void {
+    const previous = this.links.get(sessionId);
+    this.links.set(sessionId, onReplaced);
+    this.clients.set(sessionId, onMessage);
+    previous?.();
+  }
+
+  /** Desliga o enlace, se ele ainda for o dono do `sessionId`, e anuncia a saída aos outros. */
+  detachLink(sessionId: string, onReplaced: () => void): void {
+    if (this.links.get(sessionId) !== onReplaced) return;
+    this.links.delete(sessionId);
+    this.unregisterClient(sessionId);
   }
 
   /** Quantos clientes estão registrados agora: serve para conferir que nada fica abandonado. */
@@ -133,5 +168,6 @@ export class DeterministicTransportHub {
 
   destroy(): void {
     this.clients.clear();
+    this.links.clear();
   }
 }
