@@ -11,6 +11,7 @@ import {
   type TransportState,
   type TransportWelcome,
 } from '@canvash/collaboration';
+import * as Y from 'yjs';
 import type { LocalAwarenessState } from './awareness.js';
 import { commitError, transportNotOpen } from './commit-errors.js';
 import type { TransportMessage } from './legacy-message.js';
@@ -31,6 +32,9 @@ export interface LegacyTransportHub {
   ): Promise<{ ok: true; receipt: CommitReceipt } | { ok: false; code: string }>;
   sendPresence(sessionId: string, state: LocalAwarenessState | null): void;
 }
+
+/** Vetor de estado vazio: pede ao hub o estado inteiro da sala. */
+const EMPTY_STATE_VECTOR = new Uint8Array([0]);
 
 export function isLegacyTransportHub(value: unknown): value is LegacyTransportHub {
   if (typeof value !== 'object' || value === null) return false;
@@ -117,13 +121,17 @@ export function createLegacyHubTransport(
       try {
         hub.registerClient(sessionId, onMessage);
         const missing = hub.syncWithServer(hello.syncState);
+        // O hub não informa o vetor de estado da sala: ele sai do estado inteiro dela.
+        const serverSyncState = Y.encodeStateVectorFromUpdate(
+          hub.syncWithServer(EMPTY_STATE_VECTOR),
+        );
         setState('open');
         return Promise.resolve(
           ok({
             roomEpoch: hello.roomEpoch ?? fallbackEpoch,
             access: 'write' as const,
             missing,
-            serverSyncState: new Uint8Array(),
+            serverSyncState,
             serverTime: Date.now(),
           }),
         );

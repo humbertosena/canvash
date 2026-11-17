@@ -103,6 +103,12 @@ export interface PendingCommit {
   rejected?: CollaborationError;
 }
 
+/** O limite como o host o configurou: em MiB quando é um número inteiro deles, senão em bytes. */
+function formatBytes(bytes: number): string {
+  const mebibytes = bytes / (1024 * 1024);
+  return Number.isInteger(mebibytes) && mebibytes >= 1 ? `${mebibytes} MiB` : `${bytes} bytes`;
+}
+
 /** Erros de commit que tentar de novo, na mesma conexão, não resolve. */
 const REJECTED_COMMIT_CODES: ReadonlySet<string> = new Set([
   'INVALID_DOCUMENT',
@@ -132,6 +138,18 @@ export class YjsCollaborationSession implements CollaborationSession {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   /** Quantas rodadas de reenvio seguidas falharam: dá o teto da próxima espera. */
   private retryAttempt = 0;
+  /**
+   * Há conteúdo no documento local que ficou fora da fila de pendências, porque não coube no
+   * backlog. Sai num commit de reconciliação, na volta do enlace ou quando a fila esvazia.
+   */
+  private divergent = false;
+  /** Edições locais feitas com a reconciliação em voo: pedem outra rodada dela. */
+  private changesSinceReconcile = 0;
+  private reconciling = false;
+  /** A sessão parou por erro fatal e não envia mais nada até o host chamar `reconnect()`. */
+  private halted = false;
+  /** Vetor de estado do servidor no último handshake: a reconciliação parte dele. */
+  private serverSyncState: Uint8Array | null;
   /** Envios à espera de resposta do servidor. `leave()` espera por eles antes de responder. */
   private readonly inFlight = new Set<Promise<unknown>>();
 
@@ -203,6 +221,11 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.roomEpoch = welcome?.roomEpoch ?? options.roomEpoch ?? 'epoch-1';
     this.credentials = options.credentials;
     this._access = welcome?.access ?? 'write';
+    this.serverSyncState =
+      welcome?.serverSyncState ??
+      (initialServerSnapshot && initialServerSnapshot.length > 0
+        ? Y.encodeStateVectorFromUpdate(initialServerSnapshot)
+        : null);
     // Quem só lê não leva o documento local para a sala: o estado dela vale, mesmo vazio.
     const maySeed = this._access === 'write';
     this.maxOfflineBacklogBytes = options.maxOfflineBacklogBytes ?? MAX_OFFLINE_BACKLOG_BYTES;
@@ -381,7 +404,7 @@ export class YjsCollaborationSession implements CollaborationSession {
    * da fábrica, com handshake.
    */
   private async fetchMissing(): Promise<Result<Uint8Array, CollaborationError>> {
-    if (this.transport.state === 'open') {
+    if (this.transport.state === 'open' && !this.halted) {
       return this.transport.sync(Y.encodeStateVector(this.ydoc));
     }
     if (this.createTransport === null) {
@@ -403,6 +426,7 @@ export class YjsCollaborationSession implements CollaborationSession {
       return welcome;
     }
     this.transport = transport;
+    this.rememberServerState(welcome.value);
     return ok(welcome.value.missing);
   }
 
@@ -435,6 +459,8 @@ export class YjsCollaborationSession implements CollaborationSession {
     }
     if (state === 'closed' && error !== undefined && this._status !== 'disconnected') {
       // Fechou com erro: handshake recusado na reconexão, protocolo ou enlace substituído.
+      this.halted = true;
+      this.cancelCommitRetry();
       this.setStatus('error', error);
     }
   }
@@ -444,6 +470,7 @@ export class YjsCollaborationSession implements CollaborationSession {
    * para o host recuperar (exportar ou `leave({ force })`).
    */
   private failWith(error: CollaborationError): void {
+    this.halted = true;
     this.setStatus('error', error);
     this.cancelCommitRetry();
     this.transport.close();
@@ -486,14 +513,95 @@ export class YjsCollaborationSession implements CollaborationSession {
       );
       return;
     }
+    this.rememberServerState(welcome);
     this.applyMissing(welcome.missing);
     this.applyAccess(welcome.access);
-    await this.flushPendingCommits();
+    if (this.divergent) {
+      // A reconciliação leva tudo o que o servidor não tem, inclusive o que estava na fila.
+      await this.reconcile();
+    } else {
+      await this.flushPendingCommits();
+    }
     const stillCurrent = !this.isDestroyed && transport === this.transport;
-    if (!stillCurrent || transport.state !== 'open' || this._status !== 'reconnecting') return;
+    if (!stillCurrent || transport.state !== 'open' || this.halted || this.divergent) return;
+    if (this._status !== 'reconnecting' && this._status !== 'error') return;
     this.setStatus('connected');
     // O que foi editado durante o reenvio ficou na fila: sai agora.
     if (this.pendingCommits.length > 0) await this.flushPendingCommits();
+  }
+
+  private rememberServerState(welcome: TransportWelcome): void {
+    if (welcome.serverSyncState.byteLength > 0) this.serverSyncState = welcome.serverSyncState;
+  }
+
+  /** O enlace está bom e a sessão não parou por erro fatal: dá para enviar. */
+  private canSend(): boolean {
+    return (
+      !this.isDestroyed &&
+      !this.halted &&
+      this.transport.state === 'open' &&
+      this._status !== 'disconnected' &&
+      this._status !== 'reconnecting'
+    );
+  }
+
+  /**
+   * Envia ao servidor tudo o que ele não tem: a diferença entre o documento local e o vetor de
+   * estado dele no último handshake. Substitui as pendências que existiam, que ficam cobertas
+   * pelo recibo deste commit. Se algo for editado com ele em voo, sai outra rodada.
+   */
+  private async reconcile(): Promise<void> {
+    if (!this.divergent || this.reconciling) return;
+    this.reconciling = true;
+    try {
+      while (
+        this.divergent &&
+        !this.isDestroyed &&
+        !this.halted &&
+        this.transport.state === 'open'
+      ) {
+        this.changesSinceReconcile = 0;
+        const covered = new Set(this.pendingCommits.map((pending) => pending.commitId));
+        const sentState = Y.encodeStateVector(this.ydoc);
+        const update = Y.encodeStateAsUpdate(this.ydoc, this.serverSyncState ?? undefined);
+        const commitId = `commit-${this.sessionId}-${crypto.randomUUID()}`;
+        const res = await this.track(this.transport.commit(commitId, update, this.roomEpoch));
+        if (this.isDestroyed) return;
+        if (!res.ok) {
+          this.handleReconcileFailure(commitId, res.error);
+          return;
+        }
+        this.pendingCommits = this.pendingCommits.filter((p) => !covered.has(p.commitId));
+        // O servidor passou a ter, no mínimo, tudo o que o documento local tinha no envio.
+        this.serverSyncState = sentState;
+        this.receipts.push(res.value);
+        for (const l of this.commitReceiptListeners) l(res.value);
+        if (this.changesSinceReconcile === 0) this.divergent = false;
+      }
+    } finally {
+      this.reconciling = false;
+    }
+    if (!this.divergent && this._status === 'error' && this.canSend()) {
+      this.setStatus('connected');
+    }
+  }
+
+  private handleReconcileFailure(commitId: string, error: CollaborationError): void {
+    if (error.code === 'ROOM_EPOCH_MISMATCH') {
+      this.failWith(error);
+      return;
+    }
+    if (error.code === 'DISCONNECTED') return; // a volta do enlace tenta de novo
+    const details =
+      typeof error.details === 'object' && error.details !== null ? error.details : {};
+    const failure = createCollaborationError(error.code, error.message, { ...details, commitId });
+    if (error.code === 'STORAGE_UNAVAILABLE') {
+      this.setStatus(this._status, failure);
+      this.scheduleCommitRetry();
+      return;
+    }
+    // Recusado de vez (grande demais, inválido, sem acesso): fica para o host exportar.
+    this.setStatus('error', failure);
   }
 
   async reconnect(): Promise<Result<void, CollaborationError>> {
@@ -511,7 +619,15 @@ export class YjsCollaborationSession implements CollaborationSession {
       this.setStatus('error', fetched.error);
       return fetched;
     }
+    this.halted = false;
     this.applyMissing(fetched.value);
+
+    if (this.divergent) {
+      // Ficou conteúdo fora da fila: a reconciliação leva tudo e, se der certo, volta a connected.
+      await this.reconcile();
+      if (!this.divergent && this._status === 'reconnecting') this.setStatus('connected');
+      return ok(undefined);
+    }
 
     this.setStatus('connected');
 
@@ -529,12 +645,13 @@ export class YjsCollaborationSession implements CollaborationSession {
         await Promise.allSettled([...this.inFlight]);
       }
     }
-    if (!options?.force && this.pendingCommits.length > 0) {
+    if (!options?.force && (this.pendingCommits.length > 0 || this.divergent)) {
       return err(
         createCollaborationError(
           'PENDING_CHANGES',
           'Existem alterações locais pendentes de confirmação durável',
-          { pendingCount: this.pendingCommits.length },
+          // O conteúdo que ficou fora da fila conta como uma pendência a mais.
+          { pendingCount: this.pendingCommits.length + (this.divergent ? 1 : 0) },
         ),
       );
     }
@@ -1008,15 +1125,28 @@ export class YjsCollaborationSession implements CollaborationSession {
       (acc, c) => acc + c.update.byteLength,
       0,
     );
+    if (this.divergent) {
+      // Já há conteúdo fora da fila: a reconciliação leva este também.
+      this.changesSinceReconcile += 1;
+      return;
+    }
     if (currentBacklogBytes + update.byteLength > this.maxOfflineBacklogBytes) {
+      // O conteúdo fica no documento local e sai na reconciliação: nada aplicado localmente
+      // fica fora do servidor.
+      this.divergent = true;
       this.setStatus(
         'error',
         createCollaborationError(
           'LIMIT_EXCEEDED',
-          'Limite máximo de backlog offline excedido (20 MiB)',
-          { currentBacklogBytes, updateBytes: update.byteLength },
+          `Limite de backlog offline excedido (${formatBytes(this.maxOfflineBacklogBytes)})`,
+          {
+            limitBytes: this.maxOfflineBacklogBytes,
+            currentBacklogBytes,
+            updateBytes: update.byteLength,
+          },
         ),
       );
+      if (this.pendingCommits.length === 0 && this.canSend()) void this.track(this.reconcile());
       return;
     }
 
@@ -1103,8 +1233,14 @@ export class YjsCollaborationSession implements CollaborationSession {
    */
   private async retryPendingCommits(): Promise<void> {
     // Sem enlace não há o que tentar: a volta dele reenvia todas as pendências.
-    if (this.isDestroyed || this._status !== 'connected' || this.transport.state !== 'open') {
+    if (!this.canSend()) {
       this.retryAttempt = 0;
+      return;
+    }
+    if (this.divergent && this.pendingCommits.every((pending) => pending.rejected !== undefined)) {
+      // A rodada é da reconciliação que o armazenamento não gravou.
+      await this.reconcile();
+      if (!this.divergent) this.retryAttempt = 0;
       return;
     }
     let failed = false;
@@ -1134,6 +1270,10 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.receipts.push(receipt);
     for (const l of this.commitReceiptListeners) {
       l(receipt);
+    }
+    // A fila esvaziou com o enlace aberto: é a hora de levar o que ficou fora dela.
+    if (this.divergent && this.pendingCommits.length === 0 && this.canSend()) {
+      void this.track(this.reconcile());
     }
   }
 

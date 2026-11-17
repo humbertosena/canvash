@@ -5,7 +5,9 @@ import {
 } from '@canvash/collaboration';
 
 /** Códigos que o hub e o emulador devolvem num commit recusado → erro do contrato. */
-const COMMIT_ERRORS: Readonly<Record<string, { code: CollaborationErrorCode; message: string }>> = {
+const COMMIT_ERRORS: Readonly<
+  Record<string, { code: CollaborationErrorCode; message: string; reason?: string }>
+> = {
   ROOM_EPOCH_MISMATCH: {
     code: 'ROOM_EPOCH_MISMATCH',
     message: 'A sala está em outra epoch',
@@ -17,6 +19,11 @@ const COMMIT_ERRORS: Readonly<Record<string, { code: CollaborationErrorCode; mes
   UNAUTHORIZED: {
     code: 'UNAUTHORIZED',
     message: 'A sessão tem acesso somente leitura',
+  },
+  LIMIT_EXCEEDED: {
+    code: 'LIMIT_EXCEEDED',
+    message: 'O commit é grande demais para o servidor',
+    reason: 'commit',
   },
   STORAGE_UNAVAILABLE: {
     code: 'STORAGE_UNAVAILABLE',
@@ -34,7 +41,7 @@ export function commitError(code: string): CollaborationError {
       reason: code,
     });
   }
-  return createCollaborationError(known.code, known.message, { reason: code });
+  return createCollaborationError(known.code, known.message, { reason: known.reason ?? code });
 }
 
 export function transportNotOpen(): CollaborationError {
