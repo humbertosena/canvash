@@ -1,4 +1,9 @@
-import type { CollaborationCredentials, RoomAccess } from '@canvash/collaboration';
+import type {
+  CollaborationCredentials,
+  CollaborationError,
+  Result,
+  RoomAccess,
+} from '@canvash/collaboration';
 import type { CollaborationServerLogger } from './logger.js';
 import type { RoomStorage } from './storage.js';
 
@@ -64,6 +69,12 @@ export interface CollaborationServerOptions {
   readonly maxPresenceBytes?: number;
   /** Presenças repassadas por sessão e por segundo. Padrão 20 (`MAX_PRESENCE_RATE_HZ`). */
   readonly presenceRateHz?: number;
+  /**
+   * Idade, em ms, a partir da qual um recibo pode sair na compactação. Sem ele, nenhum sai. Um
+   * commit reenviado sem recibo guardado é aplicado de novo, sem mudar o documento, e recebe um
+   * recibo novo (P8).
+   */
+  readonly receiptRetentionMs?: number;
   /** Commits por gravação: o lote fecha com este tanto. Padrão 64. */
   readonly maxBatchCommits?: number;
   /** Maior quadro aceito e enviado. Padrão `DEFAULT_MAX_FRAME_BYTES` (32 MiB). */
@@ -88,6 +99,23 @@ export interface RoomStats {
 export interface CollaborationServer {
   /** Entrega uma conexão já aberta ao núcleo. Não lança. */
   handleConnection(connection: ServerConnection, request: ConnectionRequest): void;
+  /**
+   * Grava o snapshot atual e descarta o log até o último commit, preservando os recibos (salvo os
+   * mais antigos que `receiptRetentionMs`). Entra na fila da sala, depois dos commits já
+   * enfileirados. Carrega a sala se ela existe no armazenamento e não está na memória; sala que
+   * não existe falha com `NOT_FOUND`.
+   */
+  compact(documentId: string): Promise<Result<void, CollaborationError>>;
+  /**
+   * Começa uma epoch nova: grava o snapshot (o dado, que tem de ser um estado Yjs válido, ou o
+   * atual), esvazia log e recibos, manda `ROOM_EPOCH_MISMATCH` fatal a todos os conectados e os
+   * desconecta. Quem volta com a epoch antiga recebe o mesmo erro no `hello`; entrar na nova é
+   * decisão do cliente (sem `roomEpoch` no `hello`). Devolve a epoch nova.
+   */
+  rotateEpoch(
+    documentId: string,
+    options?: { readonly snapshot?: Uint8Array },
+  ): Promise<Result<string, CollaborationError>>;
   /** `undefined` quando a sala não está carregada. */
   getRoomStats(documentId: string): RoomStats | undefined;
 }

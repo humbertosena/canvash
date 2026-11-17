@@ -280,7 +280,7 @@ export function serveConnection(
     if (client.access === 'read') {
       return rejectCommit(message.id, 'UNAUTHORIZED', 'Esta sessão só tem acesso de leitura.');
     }
-    if (message.roomEpoch !== room.roomEpoch) {
+    if (message.roomEpoch !== room.roomEpoch || room.retired) {
       return rejectCommit(
         message.id,
         'ROOM_EPOCH_MISMATCH',

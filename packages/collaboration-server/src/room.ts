@@ -39,8 +39,30 @@ export interface PendingCommit {
   readonly update: Uint8Array;
 }
 
+/** Erros que o próprio servidor criou, em oposição aos que vieram do armazenamento do host. */
+const ownErrors = new WeakSet<CollaborationError>();
+
+function ownError(
+  code: CollaborationError['code'],
+  message: string,
+  details?: unknown,
+): CollaborationError {
+  const error = createCollaborationError(code, message, details);
+  ownErrors.add(error);
+  return error;
+}
+
+/** A mensagem do erro é do servidor (e pode ir ao cliente), não do armazenamento do host. */
+export function isOwnError(error: CollaborationError): boolean {
+  return ownErrors.has(error);
+}
+
 export class Room {
   readonly clients = new Map<string, RoomClient>();
+  /** O último commit que está no log do armazenamento e ainda não foi compactado. */
+  logTail: string | undefined;
+  /** A sala trocou de epoch: não aceita mais commit nem tarefa. */
+  retired = false;
   /** A última presença de cada sessão, para o recém-chegado. Só em memória. */
   readonly presences = new Map<string, unknown>();
   /** Presenças descartadas por identidade, formato ou tamanho. */
@@ -61,6 +83,14 @@ export class Room {
     /** `commitId` → recibo, para reenviar o mesmo `ack`. */
     readonly receipts: Map<string, CommitReceipt>,
   ) {}
+
+  /** Tira todos os clientes da sala, sem avisar ninguém, e os devolve. */
+  dropClients(): RoomClient[] {
+    const dropped = [...this.clients.values()];
+    this.clients.clear();
+    this.presences.clear();
+    return dropped;
+  }
 
   /** Põe o cliente na sala. Devolve o que estava no lugar dele, se havia. */
   add(client: RoomClient): RoomClient | undefined {
@@ -131,7 +161,7 @@ export class Room {
 function rebuildRoom(documentId: string, stored: StoredRoom): Result<Room, CollaborationError> {
   if (stored.provider !== SUPPORTED_PROVIDER) {
     return err(
-      createCollaborationError(
+      ownError(
         'UNSUPPORTED',
         `A sala "${documentId}" foi guardada pelo provider "${stored.provider}", e este servidor só hospeda "${SUPPORTED_PROVIDER}".`,
         { provider: stored.provider },
@@ -154,12 +184,16 @@ function rebuildRoom(documentId: string, stored: StoredRoom): Result<Room, Colla
   const receipts = new Map<string, CommitReceipt>();
   for (const receipt of stored.receipts) receipts.set(receipt.commitId, receipt);
   for (const commit of stored.log) receipts.set(commit.commitId, commit.receipt);
-  return ok(new Room(documentId, stored.roomEpoch, doc, receipts));
+  const room = new Room(documentId, stored.roomEpoch, doc, receipts);
+  room.logTail = stored.log.at(-1)?.commitId;
+  return ok(room);
 }
 
 export interface OpenRoomOptions {
   readonly storage: RoomStorage;
   readonly createEpoch: () => string;
+  /** Cria a sala vazia se ela não existe. Sem isto, a sala que não existe falha com `NOT_FOUND`. */
+  readonly create: boolean;
 }
 
 /**
@@ -174,6 +208,9 @@ export async function openRoom(
     const loaded = await options.storage.load(documentId);
     if (!loaded.ok) return loaded;
     if (loaded.value !== null) return rebuildRoom(documentId, loaded.value);
+    if (!options.create) {
+      return err(ownError('NOT_FOUND', `A sala "${documentId}" não existe no armazenamento.`));
+    }
 
     // Sala nova: nunca `initYjsDocument` sobre uma sala que já existe.
     const roomEpoch = options.createEpoch();
@@ -191,7 +228,7 @@ export async function openRoom(
     if (created.error.code !== 'CONFLICT') return created;
   }
   return err(
-    createCollaborationError(
+    ownError(
       'STORAGE_UNAVAILABLE',
       `Não foi possível abrir a sala "${documentId}": ela some e aparece entre a carga e a criação.`,
     ),

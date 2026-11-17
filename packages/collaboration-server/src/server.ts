@@ -10,7 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { submitCommit, type CommitQueueOptions } from './commit-queue.js';
 import { CLOSE_FATAL, serveConnection, type ConnectionContext } from './connection.js';
 import { consoleLogger } from './logger.js';
-import { openRoom, type PendingCommit, type Room } from './room.js';
+import { compactRoom, rotateRoomEpoch, type MaintenanceOptions } from './maintenance.js';
+import { isOwnError, openRoom, type PendingCommit, type Room } from './room.js';
 import type {
   CollaborationServer,
   CollaborationServerOptions,
@@ -74,13 +75,15 @@ export function createCollaborationServer(
 
   /** A mensagem do armazenamento é do host e pode ter endereço, caminho ou credencial. */
   function publicFailure(documentId: string, error: CollaborationError): CollaborationError {
+    if (isOwnError(error)) return error;
     logger.error('falha ao abrir a sala', { documentId, code: error.code });
-    return error.code === 'UNSUPPORTED'
-      ? error
-      : createCollaborationError(error.code, 'A sala não pôde ser aberta no armazenamento.');
+    return createCollaborationError(error.code, 'A sala não pôde ser aberta no armazenamento.');
   }
 
-  function getRoom(documentId: string): Promise<Result<Room, CollaborationError>> {
+  function acquireRoom(
+    documentId: string,
+    create: boolean,
+  ): Promise<Result<Room, CollaborationError>> {
     const existing = rooms.get(documentId);
     if (existing !== undefined) {
       // Quem pede a sala a segura: a descarga só volta a valer quando ninguém a usa.
@@ -102,21 +105,26 @@ export function createCollaborationServer(
     const entry: RoomEntry = {
       room: undefined,
       idleTimer: undefined,
-      opening: openRoom(documentId, { storage: options.storage, createEpoch }).then((opened) => {
-        if (opened.ok) {
-          entry.room = opened.value;
-          // Quando a fila esvazia com a sala sem clientes, começa o prazo da descarga.
-          opened.value.onSettled = () => releaseRoom(opened.value);
-          return opened;
-        }
-        // Sala que não abriu não fica registrada: a próxima conexão tenta de novo.
-        if (rooms.get(documentId) === entry) rooms.delete(documentId);
-        return err(publicFailure(documentId, opened.error));
-      }),
+      opening: openRoom(documentId, { storage: options.storage, createEpoch, create }).then(
+        (opened) => {
+          if (opened.ok) {
+            entry.room = opened.value;
+            // Quando a fila esvazia com a sala sem clientes, começa o prazo da descarga.
+            opened.value.onSettled = () => releaseRoom(opened.value);
+            return opened;
+          }
+          // Sala que não abriu não fica registrada: a próxima conexão tenta de novo.
+          if (rooms.get(documentId) === entry) rooms.delete(documentId);
+          return err(publicFailure(documentId, opened.error));
+        },
+      ),
     };
     rooms.set(documentId, entry);
     return entry.opening;
   }
+
+  const getRoom = (documentId: string): Promise<Result<Room, CollaborationError>> =>
+    acquireRoom(documentId, true);
 
   /** Chamada quando uma conexão larga a sala: sem clientes, começa o prazo da descarga. */
   function releaseRoom(room: Room): void {
@@ -124,6 +132,38 @@ export function createCollaborationServer(
     if (entry === undefined || entry.room !== room || room.clients.size > 0 || room.busy) return;
     clearTimeout(entry.idleTimer);
     entry.idleTimer = setTimeout(() => unload(entry), roomIdleMs);
+  }
+
+  /** A sala trocou de epoch: sai da memória na hora, sem esperar a ociosidade. */
+  function retireRoom(room: Room): void {
+    const entry = rooms.get(room.documentId);
+    if (entry === undefined || entry.room !== room) return;
+    clearTimeout(entry.idleTimer);
+    rooms.delete(room.documentId);
+    room.doc.destroy();
+  }
+
+  const maintenance: MaintenanceOptions = {
+    storage: options.storage,
+    logger,
+    now: options.now ?? Date.now,
+    createEpoch,
+    receiptRetentionMs: options.receiptRetentionMs,
+  };
+
+  /** Roda a tarefa na fila de uma sala que já existe, carregando-a se preciso, sem criá-la. */
+  async function inExistingRoom<T>(
+    documentId: string,
+    task: (room: Room) => Promise<Result<T, CollaborationError>>,
+  ): Promise<Result<T, CollaborationError>> {
+    const acquired = await acquireRoom(documentId, false);
+    if (!acquired.ok) return acquired;
+    const room = acquired.value;
+    try {
+      return await room.enqueue(() => task(room));
+    } finally {
+      releaseRoom(room);
+    }
   }
 
   const commitQueue: CommitQueueOptions = {
@@ -161,6 +201,16 @@ export function createCollaborationServer(
           // A conexão já estava perdida.
         }
       }
+    },
+
+    compact(documentId: string) {
+      return inExistingRoom(documentId, (room) => compactRoom(room, maintenance));
+    },
+
+    rotateEpoch(documentId: string, rotateOptions: { readonly snapshot?: Uint8Array } = {}) {
+      return inExistingRoom(documentId, (room) =>
+        rotateRoomEpoch(room, maintenance, rotateOptions.snapshot, retireRoom),
+      );
     },
 
     getRoomStats(documentId: string): RoomStats | undefined {

@@ -31,7 +31,7 @@ function cloneDoc(source: Y.Doc, extra: readonly Uint8Array[] = []): Y.Doc {
 }
 
 /** Aplica o update na cópia e confere que o resultado projeta num documento válido (R10). */
-function applyAndValidate(
+export function applyAndValidate(
   work: Y.Doc,
   update: Uint8Array,
 ): Result<CanvasDocument, CollaborationError> {
@@ -151,6 +151,7 @@ async function processBatch(
         Y.applyUpdate(room.doc, entry.pending.update);
         room.receipts.set(entry.pending.commitId, entry.receipt);
       }
+      room.logTail = accepted.at(-1)?.pending.commitId;
     } else {
       stored = false;
       options.logger.error('falha ao gravar o lote de commits', {
@@ -195,7 +196,12 @@ async function processBatch(
 async function flush(room: Room, options: CommitQueueOptions): Promise<void> {
   room.flushScheduled = false;
   const batch = room.pending.splice(0, options.maxBatchCommits);
-  if (batch.length > 0) {
+  if (room.retired) {
+    // A sala trocou de epoch: o que esperava na fila é da epoch antiga.
+    for (const pending of batch) {
+      replyError(pending, 'ROOM_EPOCH_MISMATCH', 'A sala trocou de epoch; reconecte.');
+    }
+  } else if (batch.length > 0) {
     try {
       await processBatch(room, options, batch);
     } catch {
