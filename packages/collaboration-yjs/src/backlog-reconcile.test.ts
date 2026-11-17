@@ -156,6 +156,8 @@ describe('backlog cheio e reconciliação (US-P.11)', () => {
     await flush();
     await vi.advanceTimersByTimeAsync(20);
     await flush();
+    // O reanúncio de presença também viaja com atraso: deixa a rede simulada esvaziar.
+    await vi.advanceTimersByTimeAsync(100);
     await hub.settle();
 
     expect(nodeIds(sectionB)).toEqual(['durante', 'r1']);

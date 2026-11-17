@@ -257,7 +257,7 @@ describe('sessão construída direto com o hub antigo', () => {
       'sess-1',
       server.getSnapshot(),
     );
-    const seen: unknown[] = [];
+    const seen: Array<{ type: string; payload: unknown }> = [];
     hub.registerClient('observador', (msg) => seen.push(msg));
     // Marca em `meta`: a projeção do canvas ignora, e a sessão a recebe como qualquer update.
     const outside = new Y.Doc();
@@ -267,7 +267,9 @@ describe('sessão construída direto com o hub antigo', () => {
     const result = await session.reconnect();
 
     expect(result.ok).toBe(true);
-    expect(seen).toEqual([]);
+    // O enlace não foi fechado nem reaberto: ninguém viu a sessão sair. Ela só se reanuncia.
+    expect(seen.filter((msg) => msg.payload === null)).toEqual([]);
+    expect(seen.map((msg) => msg.type)).toEqual(['presence']);
     expect(session.getYDoc().getMap('meta').get('por-fora')).toBe('por-fora');
     session.destroy();
   });

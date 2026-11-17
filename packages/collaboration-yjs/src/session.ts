@@ -12,6 +12,7 @@ import {
   type CreateTransport,
   type PendingSummary,
   type PresenceUpdate,
+  type PresenceViolation,
   type RemotePresence,
   type Result,
   type RoomAccess,
@@ -169,6 +170,7 @@ export class YjsCollaborationSession implements CollaborationSession {
   /** O último resumo de pendências avisado: só há novo aviso quando ele muda. */
   private lastPending: PendingSummary = { count: 0, bytes: 0 };
   private readonly receiptHistoryLimit: number;
+  private readonly onPresenceError: ((violation: PresenceViolation) => void) | undefined;
 
   private isApplyingRemote = false;
   private isDestroyed = false;
@@ -228,6 +230,7 @@ export class YjsCollaborationSession implements CollaborationSession {
     this.section = options.section;
     this.roomEpoch = welcome?.roomEpoch ?? options.roomEpoch ?? 'epoch-1';
     this.credentials = options.credentials;
+    this.onPresenceError = options.onPresenceError;
     this.receiptHistoryLimit = Math.max(
       1,
       Math.floor(options.receiptHistoryLimit ?? DEFAULT_RECEIPT_HISTORY_LIMIT),
@@ -384,6 +387,11 @@ export class YjsCollaborationSession implements CollaborationSession {
   updatePresence(update: PresenceUpdate): void {
     if (this.isDestroyed) return;
     this.awareness.updateLocal(update);
+  }
+
+  flushPresence(): void {
+    if (this.isDestroyed) return;
+    this.awareness.flush();
   }
 
   getPresences(): readonly RemotePresence[] {
@@ -573,8 +581,13 @@ export class YjsCollaborationSession implements CollaborationSession {
     }
     const stillCurrent = !this.isDestroyed && transport === this.transport;
     if (!stillCurrent || transport.state !== 'open' || this.halted || this.divergent) return;
-    if (this._status !== 'reconnecting' && this._status !== 'error') return;
+    if (this._status !== 'reconnecting' && this._status !== 'error') {
+      this.awareness.announce();
+      return;
+    }
     this.setStatus('connected');
+    // Os pares voltam a ver a sessão já, sem esperar o heartbeat.
+    this.awareness.announce();
     // O que foi editado durante o reenvio ficou na fila: sai agora.
     if (this.pendingCommits.length > 0) await this.flushPendingCommits();
   }
@@ -675,10 +688,12 @@ export class YjsCollaborationSession implements CollaborationSession {
       // Ficou conteúdo fora da fila: a reconciliação leva tudo e, se der certo, volta a connected.
       await this.reconcile();
       if (!this.divergent && this._status === 'reconnecting') this.setStatus('connected');
+      this.awareness.announce();
       return ok(undefined);
     }
 
     this.setStatus('connected');
+    this.awareness.announce();
 
     // Descarrega pendências offline acumuladas (COLLAB-11)
     await this.flushPendingCommits();
@@ -1379,9 +1394,17 @@ export class YjsCollaborationSession implements CollaborationSession {
   private applyRemotePresence(from: string, state: unknown): void {
     if (state === null) {
       this.awareness.handleRemoteDisconnect(from);
-    } else {
-      this.awareness.handleRemoteUpdate(state as LocalAwarenessState);
+      return;
     }
+    // Quem enviou é o `from` do envelope, carimbado pelo servidor. Uma presença que diz ser de
+    // outra sessão trocaria o cursor dela pelo de quem a forjou.
+    const claimed =
+      typeof state === 'object' ? (state as { sessionId?: unknown }).sessionId : undefined;
+    if (typeof claimed === 'string' && claimed !== from) {
+      this.onPresenceError?.({ reason: 'SESSION_MISMATCH', field: 'sessionId' });
+      return;
+    }
+    this.awareness.handleRemoteUpdate(state as LocalAwarenessState);
   }
 
   private applyRemoteUpdate(update: Uint8Array): void {

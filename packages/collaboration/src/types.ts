@@ -117,6 +117,12 @@ export interface CollaborationSession {
   /** Atualiza o estado efêmero de presença do usuário local com limitação de taxa (COLLAB-05). */
   updatePresence(update: PresenceUpdate): void;
 
+  /**
+   * Envia já a presença pendente, sem esperar a janela do limite de taxa. Serve para o que não
+   * pode atrasar, como o `drag: null` ao soltar.
+   */
+  flushPresence(): void;
+
   /** Obtém a lista atual de participantes remotos ativos com presença não expirada. */
   getPresences(): readonly RemotePresence[];
 
@@ -170,7 +176,9 @@ export type PresenceViolationReason =
   | 'TOO_MANY_IDS'
   | 'NAME_TOO_LONG'
   | 'INVALID_COLOR'
-  | 'INVALID_AVATAR_URL';
+  | 'INVALID_AVATAR_URL'
+  /** O `sessionId` dentro da presença não é o de quem a enviou. */
+  | 'SESSION_MISMATCH';
 
 export interface PresenceViolation {
   readonly reason: PresenceViolationReason;

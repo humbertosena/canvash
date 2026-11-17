@@ -61,7 +61,7 @@ export class AwarenessManager {
         ...this.localState,
         ...update,
         selection: update.selection ? [...update.selection] : this.localState.selection,
-        updatedAt: Date.now(),
+        updatedAt: this.nextStamp(),
       };
       this.broadcastFn(this.localState);
     });
@@ -78,9 +78,18 @@ export class AwarenessManager {
     const heartbeatMs = Math.max(100, Math.floor(timeoutMs / 3));
     this.heartbeatTimer = setInterval(() => {
       if (Date.now() - this.localState.updatedAt < heartbeatMs) return;
-      this.localState = { ...this.localState, updatedAt: Date.now() };
+      this.localState = { ...this.localState, updatedAt: this.nextStamp() };
       this.broadcastFn(this.localState);
     }, heartbeatMs);
+  }
+
+  /**
+   * Carimbo do próximo envio: o relógio local, mas sempre maior que o do envio anterior. Quem
+   * recebe descarta o que não é mais novo, e dois envios no mesmo milissegundo (um `flush` logo
+   * depois de uma atualização) teriam o mesmo carimbo.
+   */
+  private nextStamp(): number {
+    return Math.max(Date.now(), this.localState.updatedAt + 1);
   }
 
   updateLocal(update: PresenceUpdate): void {
@@ -92,6 +101,16 @@ export class AwarenessManager {
   flush(): void {
     if (this.isDestroyed) return;
     this.throttler.flush();
+  }
+
+  /**
+   * Reenvia o estado local agora, com carimbo novo. Serve à volta do enlace: os pares voltam a
+   * ver a sessão sem esperar o próximo heartbeat.
+   */
+  announce(): void {
+    if (this.isDestroyed) return;
+    this.localState = { ...this.localState, updatedAt: this.nextStamp() };
+    this.broadcastFn(this.localState);
   }
 
   handleRemoteUpdate(remoteState: LocalAwarenessState | null): void {
@@ -127,7 +146,7 @@ export class AwarenessManager {
     // Quem chega só conhece quem se mexe: responde já com o próprio estado, para ele não esperar
     // o próximo heartbeat para me ver. Só na primeira vez, para as duas pontas não se repetirem.
     if (isNewcomer) {
-      this.localState = { ...this.localState, updatedAt: Date.now() };
+      this.localState = { ...this.localState, updatedAt: this.nextStamp() };
       this.broadcastFn(this.localState);
     }
     this.notify();
