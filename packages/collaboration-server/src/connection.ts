@@ -36,6 +36,7 @@ type Hello = Extract<ClientMessage, { t: 'hello' }>;
 /** O que a conexão pede ao servidor. */
 export interface ConnectionContext {
   readonly maxFrameBytes: number;
+  readonly maxClientsPerRoom: number;
   readonly helloTimeoutMs: number;
   readonly now: () => number;
   readonly logger: CollaborationServerLogger;
@@ -43,6 +44,8 @@ export interface ConnectionContext {
   readonly authorize:
     ((request: AuthorizeRequest) => AuthorizeResult | Promise<AuthorizeResult>) | undefined;
   getRoom(documentId: string): Promise<Result<Room, CollaborationError>>;
+  /** A conexão larga a sala: sem clientes, ela passa a esperar a descarga por ociosidade. */
+  releaseRoom(room: Room): void;
 }
 
 type Phase = 'awaiting-hello' | 'joining' | 'joined' | 'closed';
@@ -82,14 +85,18 @@ export function serveConnection(
     });
   }, context.helloTimeoutMs);
 
-  function send(message: ServerMessage): boolean {
+  function sendFrame(frame: Uint8Array): boolean {
     if (phase === 'closed') return false;
     try {
-      connection.send(encodeServerMessage(message));
+      connection.send(frame);
       return true;
     } catch {
       return false;
     }
+  }
+
+  function send(message: ServerMessage): boolean {
+    return sendFrame(encodeServerMessage(message));
   }
 
   /** Solta tudo o que a conexão prendia, uma vez só. */
@@ -98,7 +105,9 @@ export function serveConnection(
     phase = 'closed';
     clearTimeout(helloTimer);
     for (const stop of unsubscribe.splice(0)) stop();
-    if (room !== undefined && client !== undefined) room.remove(client);
+    if (room !== undefined && client !== undefined && room.remove(client)) {
+      context.releaseRoom(room);
+    }
     return true;
   }
 
@@ -172,60 +181,79 @@ export function serveConnection(
     }
 
     const opened = await context.getRoom(hello.documentId);
-    if (phase !== 'joining') return;
     if (!opened.ok) {
-      context.logger.error('falha ao abrir a sala', {
-        documentId: hello.documentId,
-        sessionId: hello.sessionId,
-        code: opened.error.code,
-      });
-      // A mensagem do armazenamento é do host e pode ter endereço, caminho ou credencial.
-      return fatal(
-        opened.error.code,
-        opened.error.code === 'UNSUPPORTED'
-          ? opened.error.message
-          : 'A sala não pôde ser aberta no armazenamento.',
-        opened.error.code === 'UNSUPPORTED' ? opened.error.details : undefined,
-      );
+      if (phase === 'joining') fatalFrom(opened.error);
+      return;
     }
     const joined = opened.value;
+    try {
+      if (phase !== 'joining') return;
 
-    if (hello.roomEpoch !== undefined && hello.roomEpoch !== joined.roomEpoch) {
-      return fatalFrom(
-        createCollaborationError(
-          'ROOM_EPOCH_MISMATCH',
-          `Room epoch incompatível: esperado "${hello.roomEpoch}", atual no servidor "${joined.roomEpoch}".`,
-          { clientEpoch: hello.roomEpoch, serverEpoch: joined.roomEpoch },
-        ),
-      );
+      if (
+        !joined.clients.has(hello.sessionId) &&
+        joined.clients.size >= context.maxClientsPerRoom
+      ) {
+        return fatal('LIMIT_EXCEEDED', `A sala já tem ${context.maxClientsPerRoom} clientes.`, {
+          reason: 'clients',
+        });
+      }
+      if (hello.roomEpoch !== undefined && hello.roomEpoch !== joined.roomEpoch) {
+        return fatalFrom(
+          createCollaborationError(
+            'ROOM_EPOCH_MISMATCH',
+            `Room epoch incompatível: esperado "${hello.roomEpoch}", atual no servidor "${joined.roomEpoch}".`,
+            { clientEpoch: hello.roomEpoch, serverEpoch: joined.roomEpoch },
+          ),
+        );
+      }
+      const missing = joined.missingFor(hello.syncState);
+      if (!missing.ok) return fatalFrom(missing.error);
+
+      // O welcome é montado antes de o cliente entrar: um welcome que não cabe recusa a
+      // conexão nova sem derrubar a antiga do mesmo sessionId.
+      const welcomeFrame = encodeServerMessage({
+        t: 'welcome',
+        v: PROTOCOL_VERSION,
+        roomEpoch: joined.roomEpoch,
+        access,
+        missing: missing.value,
+        serverSyncState: joined.serverSyncState(),
+        serverTime: context.now(),
+        ...(user === undefined ? {} : { user }),
+      });
+      if (welcomeFrame.byteLength > context.maxFrameBytes) {
+        context.logger.error('welcome maior que maxFrameBytes; a conexão foi recusada', {
+          documentId: hello.documentId,
+          sessionId: hello.sessionId,
+          bytes: welcomeFrame.byteLength,
+          maxFrameBytes: context.maxFrameBytes,
+        });
+        return fatal(
+          'LIMIT_EXCEEDED',
+          'O estado da sala não cabe em um quadro do protocolo; tentar de novo não resolve.',
+          { reason: 'welcome' },
+        );
+      }
+
+      const self: RoomClient = {
+        sessionId: hello.sessionId,
+        access,
+        ...(user === undefined ? {} : { user }),
+        send,
+        close: closeWith,
+      };
+      room = joined;
+      client = self;
+      const replaced = joined.add(self);
+      // A sessão continua viva na conexão nova: a antiga sai sem aviso aos outros.
+      replaced?.close(CLOSE_REPLACED, 'substituída');
+      sendFrame(welcomeFrame);
+      phase = 'joined';
+      for (const message of early.splice(0)) route(message);
+    } finally {
+      // Quem não chegou a entrar deixa a sala para a descarga por ociosidade.
+      if (client === undefined) context.releaseRoom(joined);
     }
-    const missing = joined.missingFor(hello.syncState);
-    if (!missing.ok) return fatalFrom(missing.error);
-
-    const self: RoomClient = {
-      sessionId: hello.sessionId,
-      access,
-      ...(user === undefined ? {} : { user }),
-      send,
-      close: closeWith,
-    };
-    room = joined;
-    client = self;
-    const replaced = joined.add(self);
-    // A sessão continua viva na conexão nova: a antiga sai sem aviso aos outros.
-    replaced?.close(CLOSE_REPLACED, 'substituída');
-    send({
-      t: 'welcome',
-      v: PROTOCOL_VERSION,
-      roomEpoch: joined.roomEpoch,
-      access: self.access,
-      missing: missing.value,
-      serverSyncState: joined.serverSyncState(),
-      serverTime: context.now(),
-      ...(user === undefined ? {} : { user }),
-    });
-    phase = 'joined';
-    for (const message of early.splice(0)) route(message);
   }
 
   function route(message: ClientMessage): void {
@@ -270,7 +298,11 @@ export function serveConnection(
         }
         clearTimeout(helloTimer);
         phase = 'joining';
-        join(message).catch(() => {
+        join(message).catch((error: unknown) => {
+          context.logger.error('erro interno ao entrar na sala', {
+            code: 'CONNECTION_FAILED',
+            cause: error instanceof Error ? error.name : typeof error,
+          });
           fatal('CONNECTION_FAILED', 'Erro interno do servidor ao entrar na sala.');
         });
         return;

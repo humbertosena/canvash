@@ -54,6 +54,12 @@ export interface CollaborationServerOptions {
   readonly allowedOrigins?: readonly string[];
   /** Padrão: `warn` e `error` no console. */
   readonly logger?: CollaborationServerLogger;
+  /** Clientes ao mesmo tempo numa sala. Padrão 50. A conexão a mais recebe `LIMIT_EXCEEDED`. */
+  readonly maxClientsPerRoom?: number;
+  /** Salas carregadas ao mesmo tempo. Padrão 1000. A sala a mais recebe `LIMIT_EXCEEDED`. */
+  readonly maxRooms?: number;
+  /** Tempo sem clientes até a sala sair da memória. Padrão 60 s. */
+  readonly roomIdleMs?: number;
   /** Maior quadro aceito e enviado. Padrão `DEFAULT_MAX_FRAME_BYTES` (32 MiB). */
   readonly maxFrameBytes?: number;
   /** Prazo para o `hello` chegar depois de a conexão abrir. Padrão 10 s. */
@@ -67,6 +73,8 @@ export interface CollaborationServerOptions {
 export interface RoomStats {
   /** Conexões que passaram do `hello` e estão na sala. */
   readonly clients: number;
+  /** Recibos que a sala guarda para reenviar o mesmo `ack`. */
+  readonly receipts: number;
 }
 
 export interface CollaborationServer {

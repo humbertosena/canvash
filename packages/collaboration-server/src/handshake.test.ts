@@ -105,7 +105,7 @@ describe('handshake: sala nova e sala guardada (US-S.2)', () => {
     expect(client.getMap('meta').get('roomEpoch')).toBe('epoch-1');
     expect([...welcome.serverSyncState]).toEqual([...Y.encodeStateVector(client)]);
     expect(connection.closed).toBeUndefined();
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 1 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 1 });
   });
 
   it('a sala que o armazenamento já tem é reconstruída por snapshot e log, sem recriar nada', async () => {
@@ -261,7 +261,7 @@ describe('handshake: cada recusa, sem sala nem conexão pendurada (US-S.2)', () 
     );
 
     expect(error.details).toEqual({ clientEpoch: 'epoch-antiga', serverEpoch: 'epoch-guardada' });
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0 });
   });
 
   it('syncState que não é um vetor de estado: PROTOCOL_ERROR', async () => {
@@ -271,7 +271,7 @@ describe('handshake: cada recusa, sem sala nem conexão pendurada (US-S.2)', () 
       connect(server, hello({ syncState: new Uint8Array([255, 255, 255, 255, 255, 255]) })),
       'PROTOCOL_ERROR',
     );
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0 });
   });
 
   it('falha do armazenamento na carga: STORAGE_UNAVAILABLE, e a conexão seguinte tenta de novo', async () => {
@@ -387,7 +387,7 @@ describe('quadros que não são o hello (US-S.2)', () => {
 
     expect(fatalError(connection).code).toBe('PROTOCOL_ERROR');
     expect(connection.closed?.code).toBe(4000);
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0 });
   });
 
   it('a conexão que cai antes de a sala carregar não entra na sala', async () => {
@@ -400,7 +400,7 @@ describe('quadros que não são o hello (US-S.2)', () => {
     await settle();
 
     expect(connection.messages()).toEqual([]);
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0 });
   });
 });
 
@@ -446,7 +446,7 @@ describe('depois do hello: sync e bye', () => {
     connection.receive({ t: 'bye' });
 
     expect(connection.closed?.code).toBe(1000);
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0 });
   });
 
   it('a conexão que cai sai da sala', async () => {
@@ -456,7 +456,7 @@ describe('depois do hello: sync e bye', () => {
 
     connection.drop();
 
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0 });
   });
 });
 
@@ -473,7 +473,7 @@ describe('mesmo sessionId: a conexão nova toma o lugar (4001)', () => {
     expect(old.messages().map((message) => message.t)).toEqual(['welcome']);
     expect(only(fresh.messages(), 'welcome').v).toBe(1);
     expect(fresh.closed).toBeUndefined();
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 1 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 1 });
   });
 
   it('o fechamento tardio da conexão antiga não derruba a nova', async () => {
@@ -487,7 +487,7 @@ describe('mesmo sessionId: a conexão nova toma o lugar (4001)', () => {
     old.receive({ t: 'bye' });
 
     expect(fresh.closed).toBeUndefined();
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 1 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 1 });
   });
 
   it('sessões diferentes convivem na mesma sala', async () => {
@@ -498,7 +498,7 @@ describe('mesmo sessionId: a conexão nova toma o lugar (4001)', () => {
 
     expect(a.closed).toBeUndefined();
     expect(b.closed).toBeUndefined();
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 2 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 2 });
   });
 });
 
