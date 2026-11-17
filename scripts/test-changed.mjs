@@ -18,9 +18,22 @@ const at = args.indexOf('--base');
 if (at > -1) args.splice(at, 2);
 
 const binDir = path.join(root, 'node_modules', '.bin');
+// O projeto `release` (`tests/tooling/release.test.ts`: 25 a 30 s, um `pnpm` e um `git` por cenário)
+// sai do estágio de tarefa, que tem orçamento de 90 s, e roda na revisão (`check:full`, por
+// `test:coverage`): CONSTRAINTS.md, tabela Medido, 2026-11-17.
+const SKIPPED_PROJECTS = ['release'];
+
 const result = spawnSync(
   'vitest',
-  ['run', '--changed', base, '--coverage', '--passWithNoTests', ...args],
+  [
+    'run',
+    '--changed',
+    base,
+    '--coverage',
+    '--passWithNoTests',
+    ...SKIPPED_PROJECTS.flatMap((name) => ['--project', `!${name}`]),
+    ...args,
+  ],
   {
     cwd: root,
     stdio: 'inherit',

@@ -22,6 +22,8 @@ const thresholds = Object.fromEntries(
 // o gate é o `check:diff-coverage`; os limites por pacote valem na suíte inteira (`check:full`).
 const PARTIAL_RUN = process.env.CANVASH_PARTIAL_COVERAGE === '1';
 
+const RELEASE_TEST = 'tests/tooling/release.test.ts';
+
 const SERIAL_TESTS = [
   'tests/tooling/**/*.test.ts',
   'tests/benchmarks/**/*.test.ts',
@@ -72,11 +74,24 @@ export default defineConfig({
         },
       },
       {
+        // O `release.test.ts` é o mais lento da suíte (25 a 30 s: um `pnpm` e um `git` por cenário).
+        // Fica num projeto à parte para o `check:task`, que tem orçamento de 90 s, poder pulá-lo
+        // (`--project '!release'`); o `check:full` o roda, por `test:coverage`.
+        test: {
+          name: 'release',
+          include: [RELEASE_TEST],
+          environment: 'node',
+          fileParallelism: false,
+          sequence: { groupOrder: 1 },
+        },
+      },
+      {
         // Testes que executam scripts por processo ou geram cenas grandes: em paralelo com a
         // suíte, estouravam o tempo por disputa de CPU. Rodam depois dela, um arquivo por vez.
         test: {
           name: 'serial',
           include: SERIAL_TESTS,
+          exclude: [...configDefaults.exclude, RELEASE_TEST],
           environment: 'node',
           fileParallelism: false,
           sequence: { groupOrder: 1 },
