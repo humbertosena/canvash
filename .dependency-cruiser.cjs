@@ -17,6 +17,11 @@ const MODULES = {
     dependsOn: ['core', 'renderer-canvas2d'],
   },
   collaboration: { packages: ['collaboration', 'collaboration-yjs'], dependsOn: ['core'] },
+  // Só Node: nenhum pacote de navegador o importa, porque nenhum o lista em `dependsOn`.
+  'collaboration-server': {
+    packages: ['collaboration-server'],
+    dependsOn: ['core', 'collaboration'],
+  },
 };
 
 // Cada exemplo é um projeto isolado, com servidor, porta e código próprios.
@@ -56,7 +61,12 @@ const libraryOwners = [
   ['lit', ['web-components'], ['lit', 'lit-html', 'lit-element', '@lit/[^/]+']],
   ['react', ['react'], ['react', 'react-dom']],
   ['vue', ['vue'], ['vue', '@vue/[^/]+']],
-  ['yjs', ['collaboration-yjs'], ['yjs', 'y-websocket', 'y-indexeddb', 'y-protocols']],
+  [
+    'yjs',
+    ['collaboration-yjs', 'collaboration-server'],
+    ['yjs', 'y-websocket', 'y-indexeddb', 'y-protocols'],
+  ],
+  ['ws', ['collaboration-server'], ['ws']],
 ].map(([library, owners, names]) => ({
   name: `${library}-so-no-seu-pacote`,
   comment: `${library} só pode ser importado por: ${owners.join(', ')}.`,
@@ -82,6 +92,25 @@ module.exports = {
     ...exampleBoundaries,
     ...libraryOwners,
     ...wrapperPairs,
+    {
+      name: 'servidor-so-em-node',
+      comment:
+        'O servidor de colaboração é só Node: os exemplos, que rodam no navegador, não o importam.',
+      severity: 'error',
+      from: { path: '^examples/' },
+      to: { path: toPackages(['collaboration-server']) },
+    },
+    {
+      name: 'nucleo-do-servidor-sem-ws',
+      comment:
+        'O núcleo do servidor é independente do meio: `ws` só entra pelo adaptador (src/ws) e pela CLI.',
+      severity: 'error',
+      from: {
+        path: '^packages/collaboration-server/src/',
+        pathNot: '^packages/collaboration-server/src/(ws/|cli\\.ts$)',
+      },
+      to: { path: toLibrary(['ws']) },
+    },
     {
       name: 'sessao-so-conhece-a-interface-de-transporte',
       comment:

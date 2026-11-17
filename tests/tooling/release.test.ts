@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-// A versão do pacote vive no `package.json` e, em sete pacotes, também numa constante de
+// A versão do pacote vive no `package.json` e, em oito pacotes, também numa constante de
 // `src/version.ts`. A verificação de coerência acusa qualquer divergência e cita o arquivo.
 
 interface CoherenceProblem {
@@ -77,8 +77,9 @@ afterEach(() => {
 });
 
 describe('tabela pacote → constante de versão', () => {
-  it('lista os sete pacotes da premissa 2 com o nome de cada constante', () => {
+  it('lista os oito pacotes com constante de versão e o nome de cada uma', () => {
     expect(VERSION_CONSTANTS).toEqual({
+      'collaboration-server': 'COLLABORATION_SERVER_VERSION',
       export: 'EXPORT_VERSION',
       interaction: 'INTERACTION_VERSION',
       persistence: 'PERSISTENCE_VERSION',
@@ -211,14 +212,14 @@ function snapshot(packagesDir: string): Record<string, string> {
 }
 
 describe('pnpm version:set (US-R.1)', () => {
-  it('grava a versão nos dez manifestos e nas sete constantes e lista os arquivos alterados', () => {
+  it('grava a versão nos onze manifestos e nas oito constantes e lista os arquivos alterados', () => {
     const packagesDir = copyPackages();
     const before = snapshot(packagesDir);
     const result = runSetVersion(packagesDir, '0.2.0');
     expect(result.status).toBe(0);
 
     const manifests = listPackageDirs(packagesDir);
-    expect(manifests).toHaveLength(10);
+    expect(manifests).toHaveLength(11);
     for (const name of manifests) {
       const manifest = JSON.parse(
         readFileSync(join(packagesDir, name, 'package.json'), 'utf8'),

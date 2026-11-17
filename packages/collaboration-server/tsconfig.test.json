@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*.test.ts"],
+  "exclude": [],
+  "references": [
+    { "path": "./tsconfig.json" },
+    { "path": "../core" },
+    { "path": "../collaboration" },
+    { "path": "../collaboration-yjs" }
+  ]
+}

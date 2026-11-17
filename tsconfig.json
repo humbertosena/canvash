@@ -25,6 +25,8 @@
     { "path": "./packages/collaboration/tsconfig.test.json" },
     { "path": "./packages/collaboration-yjs" },
     { "path": "./packages/collaboration-yjs/tsconfig.test.json" },
+    { "path": "./packages/collaboration-server" },
+    { "path": "./packages/collaboration-server/tsconfig.test.json" },
     { "path": "./examples/vanilla" },
     { "path": "./examples/react" },
     { "path": "./examples/vue" },

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // set-version.mjs — grava uma versão única nos pacotes de `packages/*`.
 // Troca o campo `version` de cada package.json, sem mexer no resto do arquivo, e regrava
-// `src/version.ts` nos sete pacotes que têm constante de versão (tabela em release-packages.mjs).
+// `src/version.ts` nos oito pacotes que têm constante de versão (tabela em release-packages.mjs).
 // Não toca em `examples/*`, na raiz, no lockfile nem nos changelogs.
 // Uso: node scripts/set-version.mjs <versão> [--packages-dir <pasta>]
 // Saída: 0 gravou ou já estava na versão; 2 argumento que não é semver ou uso incorreto.
