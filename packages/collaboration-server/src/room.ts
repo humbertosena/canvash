@@ -20,6 +20,8 @@ export const SUPPORTED_PROVIDER = 'yjs';
 export interface RoomClient {
   readonly sessionId: string;
   readonly access: RoomAccess;
+  /** `disconnect` foi pedido para esta sessão: o que ela mandar daqui em diante é descartado. */
+  revoked: boolean;
   /** Identidade que o `authorize` informou. */
   readonly user?: { readonly id: string; readonly name?: string };
   /** Manda uma mensagem. `false` quando a conexão não aceitou. */
@@ -84,12 +86,22 @@ export class Room {
     readonly receipts: Map<string, CommitReceipt>,
   ) {}
 
-  /** Tira todos os clientes da sala, sem avisar ninguém, e os devolve. */
-  dropClients(): RoomClient[] {
-    const dropped = [...this.clients.values()];
-    this.clients.clear();
-    this.presences.clear();
+  /**
+   * Tira da sala os clientes que casam (todos, sem filtro), sem avisar ninguém, e os devolve. A
+   * presença deles também sai.
+   */
+  dropClients(matches: (client: RoomClient) => boolean = () => true): RoomClient[] {
+    const dropped = [...this.clients.values()].filter(matches);
+    for (const client of dropped) {
+      this.clients.delete(client.sessionId);
+      this.presences.delete(client.sessionId);
+    }
     return dropped;
+  }
+
+  /** Resolve quando a fila da sala esvazia, inclusive o que entrar nela enquanto espera. */
+  async settled(): Promise<void> {
+    while (this.queued > 0) await this.tail;
   }
 
   /** Põe o cliente na sala. Devolve o que estava no lugar dele, se havia. */

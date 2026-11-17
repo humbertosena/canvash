@@ -30,15 +30,26 @@ export const CLOSE_FATAL = 4000;
 export const CLOSE_REPLACED = 4001;
 /** Origem fora de `allowedOrigins`. */
 export const CLOSE_ORIGIN = 4003;
+/** O servidor está encerrando. */
+export const CLOSE_GOING_AWAY = 1001;
 const CLOSE_NORMAL = 1000;
 
 type Hello = Extract<ClientMessage, { t: 'hello' }>;
+
+/** O que o servidor guarda de uma conexão, para fechá-la no `close()`. */
+export interface ConnectionHandle {
+  close(code: number, reason: string): void;
+}
 
 /** O que a conexão pede ao servidor. */
 export interface ConnectionContext {
   readonly maxFrameBytes: number;
   readonly maxClientsPerRoom: number;
   readonly presence: Omit<PresenceOptions, 'now'>;
+  /** O servidor está fechando: ninguém mais entra, e commit novo é descartado. */
+  isClosing(): boolean;
+  track(handle: ConnectionHandle): void;
+  untrack(handle: ConnectionHandle): void;
   readonly helloTimeoutMs: number;
   readonly now: () => number;
   readonly logger: CollaborationServerLogger;
@@ -77,6 +88,17 @@ export function serveConnection(
     }
     return;
   }
+  if (context.isClosing()) {
+    try {
+      connection.close(CLOSE_GOING_AWAY, 'closing');
+    } catch {
+      // A conexão já estava perdida.
+    }
+    return;
+  }
+  const handle: ConnectionHandle = {
+    close: (code, reason) => closeWith(code, reason),
+  };
   let phase: Phase = 'awaiting-hello';
   let room: Room | undefined;
   let client: RoomClient | undefined;
@@ -109,6 +131,7 @@ export function serveConnection(
     if (phase === 'closed') return false;
     phase = 'closed';
     clearTimeout(helloTimer);
+    context.untrack(handle);
     for (const stop of unsubscribe.splice(0)) stop();
     presence?.dispose();
     if (room !== undefined && client !== undefined && room.remove(client)) {
@@ -197,6 +220,7 @@ export function serveConnection(
     const joined = opened.value;
     try {
       if (phase !== 'joining') return;
+      if (context.isClosing()) return closeWith(CLOSE_GOING_AWAY, 'closing');
 
       if (
         !joined.clients.has(hello.sessionId) &&
@@ -247,6 +271,7 @@ export function serveConnection(
       const self: RoomClient = {
         sessionId: hello.sessionId,
         access,
+        revoked: false,
         ...(user === undefined ? {} : { user }),
         send,
         sendFrame,
@@ -277,6 +302,8 @@ export function serveConnection(
 
   function handleCommit(message: Extract<ClientMessage, { t: 'commit' }>): void {
     if (room === undefined || client === undefined) return;
+    // Sessão derrubada ou servidor fechando: o commit não entra. O cliente o mantém pendente.
+    if (client.revoked || context.isClosing()) return;
     if (client.access === 'read') {
       return rejectCommit(message.id, 'UNAUTHORIZED', 'Esta sessão só tem acesso de leitura.');
     }
@@ -326,7 +353,7 @@ export function serveConnection(
         handleCommit(message);
         return;
       case 'presence':
-        presence?.receive(message.state, bytes);
+        if (client?.revoked !== true) presence?.receive(message.state, bytes);
         return;
       case 'bye':
         closeWith(CLOSE_NORMAL, 'bye');
@@ -365,6 +392,7 @@ export function serveConnection(
     }
   }
 
+  context.track(handle);
   unsubscribe.push(
     connection.onFrame(onFrame),
     connection.onClose(() => finish()),

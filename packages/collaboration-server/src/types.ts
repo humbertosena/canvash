@@ -116,6 +116,25 @@ export interface CollaborationServer {
     documentId: string,
     options?: { readonly snapshot?: Uint8Array },
   ): Promise<Result<string, CollaborationError>>;
+  /**
+   * Derruba as sessões da sala que casam com o filtro, com um erro fatal tipado (R13, P7). O
+   * `userId` é o da identidade que o `authorize` informou; com `userId` e `sessionId`, casa quem
+   * tem os dois. Filtro vazio derruba todas e descarrega a sala da memória (o servidor não apaga
+   * nada do armazenamento). Resolve com quantas sessões fechou, depois de os commits já
+   * enfileirados terminarem, com recibo; o que as sessões derrubadas mandarem depois é
+   * descartado. Sala que não está carregada resolve 0, sem ser carregada.
+   */
+  disconnect(
+    documentId: string,
+    filter: { readonly userId?: string; readonly sessionId?: string },
+    error: CollaborationError,
+  ): Promise<number>;
+  /**
+   * Para de aceitar conexões, espera as filas das salas (commit em voo termina com recibo ou
+   * fica pendente no cliente), fecha os clientes com 1001 e solta os timers. Chamado de novo,
+   * devolve a mesma promessa.
+   */
+  close(): Promise<void>;
   /** `undefined` quando a sala não está carregada. */
   getRoomStats(documentId: string): RoomStats | undefined;
 }

@@ -1,6 +1,4 @@
 import {
-  createCollaborationError,
-  err,
   ok,
   type CollaborationError,
   type Result,
@@ -9,7 +7,7 @@ import {
 import * as Y from 'yjs';
 import { applyAndValidate } from './commit-queue.js';
 import type { CollaborationServerLogger } from './logger.js';
-import { SUPPORTED_PROVIDER, type Room } from './room.js';
+import { SUPPORTED_PROVIDER, type Room, type RoomClient } from './room.js';
 import type { RoomStorage } from './storage.js';
 
 export interface MaintenanceOptions {
@@ -20,11 +18,11 @@ export interface MaintenanceOptions {
   readonly receiptRetentionMs: number | undefined;
 }
 
-const RETIRED = (): CollaborationError =>
-  createCollaborationError(
-    'ROOM_EPOCH_MISMATCH',
-    'A sala trocou de epoch enquanto esperava na fila.',
-  );
+/**
+ * A sala saiu da memória (troca de epoch, ou `disconnect` de todos) enquanto a tarefa esperava
+ * na fila: quem chamou pede a sala de novo.
+ */
+export const ROOM_RETIRED = Symbol('room-retired');
 
 /**
  * Compacta a sala. Roda dentro da fila dela, então o documento em memória já inclui todo commit
@@ -33,8 +31,8 @@ const RETIRED = (): CollaborationError =>
 export async function compactRoom(
   room: Room,
   options: MaintenanceOptions,
-): Promise<Result<void, CollaborationError>> {
-  if (room.retired) return err(RETIRED());
+): Promise<Result<void, CollaborationError> | typeof ROOM_RETIRED> {
+  if (room.retired) return ROOM_RETIRED;
   const retention = options.receiptRetentionMs;
   // Sem commit novo no log e sem retenção, não há o que compactar.
   if (room.logTail === undefined && retention === undefined) return ok(undefined);
@@ -71,8 +69,8 @@ export async function rotateRoomEpoch(
   options: MaintenanceOptions,
   snapshot: Uint8Array | undefined,
   retire: (room: Room) => void,
-): Promise<Result<string, CollaborationError>> {
-  if (room.retired) return err(RETIRED());
+): Promise<Result<string, CollaborationError> | typeof ROOM_RETIRED> {
+  if (room.retired) return ROOM_RETIRED;
   const roomEpoch = options.createEpoch();
   const next = new Y.Doc();
   try {
@@ -116,4 +114,48 @@ export async function rotateRoomEpoch(
   }
   retire(room);
   return ok(roomEpoch);
+}
+
+export interface DisconnectFilter {
+  readonly userId?: string;
+  readonly sessionId?: string;
+}
+
+export function matchesFilter(client: RoomClient, filter: DisconnectFilter): boolean {
+  return (
+    (filter.userId === undefined || client.user?.id === filter.userId) &&
+    (filter.sessionId === undefined || client.sessionId === filter.sessionId)
+  );
+}
+
+/**
+ * Derruba as sessões `targets` da sala. Roda dentro da fila dela: os commits que chegaram antes
+ * já terminaram, com recibo. Quem fica recebe o `presence null` de quem saiu.
+ */
+export function disconnectRoom(
+  room: Room,
+  targets: readonly RoomClient[],
+  error: CollaborationError,
+  everyone: boolean,
+  retire: (room: Room) => void,
+): number {
+  const dropped = room.dropClients((client) => targets.includes(client));
+  for (const client of dropped) room.broadcastPresence(client.sessionId, null);
+  for (const client of dropped) {
+    client.send({
+      t: 'error',
+      code: error.code,
+      message: error.message,
+      fatal: true,
+      ...(error.details === undefined ? {} : { details: error.details }),
+    });
+    client.close(4000, error.code);
+  }
+  if (everyone) {
+    // Sem ninguém, a sala sai da memória: o host pode apagar os dados dela sem que um commit
+    // atrasado a recrie.
+    room.retired = true;
+    retire(room);
+  }
+  return dropped.length;
 }

@@ -8,9 +8,23 @@ import {
 } from '@canvash/collaboration';
 import { randomUUID } from 'node:crypto';
 import { submitCommit, type CommitQueueOptions } from './commit-queue.js';
-import { CLOSE_FATAL, serveConnection, type ConnectionContext } from './connection.js';
+import {
+  CLOSE_FATAL,
+  CLOSE_GOING_AWAY,
+  serveConnection,
+  type ConnectionContext,
+  type ConnectionHandle,
+} from './connection.js';
 import { consoleLogger } from './logger.js';
-import { compactRoom, rotateRoomEpoch, type MaintenanceOptions } from './maintenance.js';
+import {
+  ROOM_RETIRED,
+  compactRoom,
+  disconnectRoom,
+  matchesFilter,
+  rotateRoomEpoch,
+  type DisconnectFilter,
+  type MaintenanceOptions,
+} from './maintenance.js';
 import { isOwnError, openRoom, type PendingCommit, type Room } from './room.js';
 import type {
   CollaborationServer,
@@ -52,6 +66,8 @@ export function createCollaborationServer(
     logger.warn('sem allowedOrigins: o servidor aceita conexão de qualquer origem');
   }
   const rooms = new Map<string, RoomEntry>();
+  const handles = new Set<ConnectionHandle>();
+  let closing: Promise<void> | undefined;
 
   /** Tira a sala da memória. Só a de um carregamento que terminou e está sem clientes. */
   function unload(entry: RoomEntry): void {
@@ -129,6 +145,7 @@ export function createCollaborationServer(
   /** Chamada quando uma conexão larga a sala: sem clientes, começa o prazo da descarga. */
   function releaseRoom(room: Room): void {
     const entry = rooms.get(room.documentId);
+    if (closing !== undefined) return;
     if (entry === undefined || entry.room !== room || room.clients.size > 0 || room.busy) return;
     clearTimeout(entry.idleTimer);
     entry.idleTimer = setTimeout(() => unload(entry), roomIdleMs);
@@ -151,18 +168,29 @@ export function createCollaborationServer(
     receiptRetentionMs: options.receiptRetentionMs,
   };
 
-  /** Roda a tarefa na fila de uma sala que já existe, carregando-a se preciso, sem criá-la. */
+  /**
+   * Roda a tarefa na fila de uma sala que já existe, carregando-a se preciso, sem criá-la. Se a
+   * sala saiu da memória enquanto a tarefa esperava, pede a sala de novo.
+   */
   async function inExistingRoom<T>(
     documentId: string,
-    task: (room: Room) => Promise<Result<T, CollaborationError>>,
+    task: (room: Room) => Promise<Result<T, CollaborationError> | typeof ROOM_RETIRED>,
   ): Promise<Result<T, CollaborationError>> {
-    const acquired = await acquireRoom(documentId, false);
-    if (!acquired.ok) return acquired;
-    const room = acquired.value;
-    try {
-      return await room.enqueue(() => task(room));
-    } finally {
-      releaseRoom(room);
+    for (let attempt = 0; ; attempt += 1) {
+      const acquired = await acquireRoom(documentId, false);
+      if (!acquired.ok) return acquired;
+      const room = acquired.value;
+      try {
+        const result = await room.enqueue(() => task(room));
+        if (result !== ROOM_RETIRED) return result;
+        if (attempt >= 2) {
+          return err(
+            createCollaborationError('NOT_FOUND', `A sala "${documentId}" saiu da memória.`),
+          );
+        }
+      } finally {
+        releaseRoom(room);
+      }
     }
   }
 
@@ -188,6 +216,9 @@ export function createCollaborationServer(
     getRoom,
     releaseRoom,
     submitCommit: (room: Room, pending: PendingCommit) => submitCommit(room, commitQueue, pending),
+    isClosing: () => closing !== undefined,
+    track: (handle) => handles.add(handle),
+    untrack: (handle) => handles.delete(handle),
   };
 
   return {
@@ -211,6 +242,49 @@ export function createCollaborationServer(
       return inExistingRoom(documentId, (room) =>
         rotateRoomEpoch(room, maintenance, rotateOptions.snapshot, retireRoom),
       );
+    },
+
+    async disconnect(
+      documentId: string,
+      filter: DisconnectFilter,
+      error: CollaborationError,
+    ): Promise<number> {
+      const room = rooms.get(documentId)?.room;
+      if (room === undefined) return 0;
+      const targets = [...room.clients.values()].filter((client) => matchesFilter(client, filter));
+      // Daqui em diante, o que essas sessões mandarem é descartado; o que já está na fila termina.
+      for (const client of targets) client.revoked = true;
+      const everyone = filter.userId === undefined && filter.sessionId === undefined;
+      try {
+        return await room.enqueue(() =>
+          Promise.resolve(disconnectRoom(room, targets, error, everyone, retireRoom)),
+        );
+      } finally {
+        releaseRoom(room);
+      }
+    },
+
+    close(): Promise<void> {
+      closing ??= (async () => {
+        // Commit em voo termina, com recibo, antes de qualquer cliente ser fechado.
+        await Promise.allSettled(
+          [...rooms.values()].map(async (entry) => {
+            await entry.opening;
+            await entry.room?.settled();
+          }),
+        );
+        for (const entry of [...rooms.values()]) {
+          clearTimeout(entry.idleTimer);
+          const room = entry.room;
+          if (room === undefined) continue;
+          room.retired = true;
+          for (const client of room.dropClients()) client.close(CLOSE_GOING_AWAY, 'closing');
+          room.doc.destroy();
+        }
+        rooms.clear();
+        for (const handle of [...handles]) handle.close(CLOSE_GOING_AWAY, 'closing');
+      })();
+      return closing;
     },
 
     getRoomStats(documentId: string): RoomStats | undefined {
