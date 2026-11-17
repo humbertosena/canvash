@@ -6,7 +6,7 @@ import { inject } from 'vitest';
 import { packedTarball } from './global-setup.js';
 
 // O que o tarball leva além do código: licença, README e changelog. Os contratos por pacote já
-// admitem esses arquivos; aqui se confere que eles estão lá, nos dez pacotes.
+// admitem esses arquivos; aqui se confere que eles estão lá, nos onze pacotes.
 
 const packs = inject('canvashPacks');
 const rootLicense = readFileSync(new URL('../../LICENSE', import.meta.url));
@@ -36,8 +36,8 @@ const packedManifest = (name: string): { version: string; dependencies?: Record<
   JSON.parse((readFromTarball(name, 'package.json') as Buffer).toString('utf8'));
 
 describe('arquivos de apoio nos tarballs', () => {
-  it('cobre os dez pacotes de packages/*', () => {
-    expect(packageNames).toHaveLength(10);
+  it('cobre os onze pacotes de packages/*', () => {
+    expect(packageNames).toHaveLength(11);
   });
 
   describe.each(packageNames)('%s', (name) => {

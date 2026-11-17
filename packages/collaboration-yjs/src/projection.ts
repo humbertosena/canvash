@@ -781,9 +781,11 @@ export function projectYDocToCanvasDocument(ydoc: Y.Doc): CanvasDocument {
     allNodes[id] = g;
   }
 
+  // Sala semeada a partir de um documento salvo guarda o `id` dele; as demais não têm um.
+  const documentId = ydoc.getMap('meta').get('documentId');
   return {
     schemaVersion: 1,
-    id: 'collab-doc',
+    id: typeof documentId === 'string' && documentId.length > 0 ? documentId : 'collab-doc',
     layers: layerEntries.map((e) => e.layer),
     nodes: allNodes,
   };

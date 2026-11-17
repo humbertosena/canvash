@@ -10,13 +10,28 @@ export {
   type YjsShapeRecord,
 } from './crdt-schema.js';
 export { projectYDocToCanvasDocument, RECOVERY_LAYER_ID } from './projection.js';
+export { encodeCanvasDocumentAsYjsState, projectYjsStateToCanvasDocument } from './seed.js';
 export { AwarenessManager, type LocalAwarenessState } from './awareness.js';
 export { createCollaborativeUndoManager, type CollaborativeUndoManager } from './undo.js';
-export { CollaborativeServerEmulator, type LogEntry } from './server-emulator.js';
+export {
+  CollaborativeServerEmulator,
+  type LogEntry,
+  type ServerEmulatorOptions,
+} from './server-emulator.js';
+export { createMemoryTransport } from './memory-transport.js';
+export type { LegacyTransportHub } from './legacy-hub-transport.js';
 export {
   DeterministicTransportHub,
+  type MemoryLink,
   type TransportMessage,
   type TransportNetworkOptions,
 } from './transport.js';
 export { YjsCollaborationSession, type PendingCommit } from './session.js';
 export { YjsCollaborationProvider, type YjsProviderOptions } from './provider.js';
+export {
+  createWebSocketTransport,
+  type WebSocketConstructorLike,
+  type WebSocketEventLike,
+  type WebSocketLike,
+  type WebSocketTransportOptions,
+} from './ws-transport.js';

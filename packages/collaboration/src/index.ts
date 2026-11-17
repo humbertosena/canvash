@@ -1,5 +1,6 @@
 export { COLLABORATION_VERSION } from './version.js';
 export {
+  COLLABORATION_ERROR_CODES,
   type CollaborationError,
   type CollaborationErrorCode,
   type Result,
@@ -7,6 +8,21 @@ export {
   err,
   ok,
 } from './errors.js';
+export {
+  DEFAULT_MAX_FRAME_BYTES,
+  MAX_FRAME_HEADER_BYTES,
+  PROTOCOL_VERSION,
+  type ClientMessage,
+  type ServerMessage,
+} from './protocol.js';
+export {
+  decodeClientMessage,
+  decodeServerMessage,
+  encodeClientMessage,
+  encodeServerMessage,
+  type DecodeOptions,
+} from './codec.js';
+export { decodeFrameFromText, encodeFrameAsText } from './codec-text.js';
 export {
   DEFAULT_PRESENCE_TIMEOUT_MS,
   MAX_OFFLINE_BACKLOG_BYTES,
@@ -35,11 +51,21 @@ export {
   type ValidatedPresence,
 } from './validate-presence.js';
 export type {
+  CollaborationTransport,
+  CreateTransport,
+  RoomAccess,
+  TransportHello,
+  TransportInbound,
+  TransportState,
+  TransportWelcome,
+} from './transport.js';
+export type {
   CollaborationCredentials,
   CollaborationProvider,
   CollaborationSession,
   CommitReceipt,
   ConnectOptions,
+  PendingSummary,
   PresenceDrag,
   PresencePoint,
   PresenceUpdate,

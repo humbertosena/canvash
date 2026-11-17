@@ -8,6 +8,7 @@ export interface ValidatedPresence extends PresenceUpdate {
   readonly sessionId?: string;
   readonly userId?: string;
   readonly updatedAt?: number;
+  readonly receivedAt?: number;
 }
 
 export interface ValidatePresenceOptions {
@@ -21,6 +22,8 @@ const KNOWN_FIELDS = new Set([
   'sessionId',
   'userId',
   'updatedAt',
+  // Carimbo de chegada, posto por quem recebe: aparece nas presenças que a sessão entrega.
+  'receivedAt',
   'cursor',
   'selection',
   'userName',
@@ -90,6 +93,7 @@ function checkField(
     case 'userId':
       return typeof value === 'string' ? null : fail('INVALID_SHAPE', key);
     case 'updatedAt':
+    case 'receivedAt':
     case 'selectedAt':
       if (typeof value !== 'number') return fail('INVALID_SHAPE', key);
       return Number.isFinite(value) ? null : fail('NOT_FINITE', key);

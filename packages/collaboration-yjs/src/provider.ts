@@ -1,17 +1,23 @@
 import {
-  createCollaborationError,
   err,
   ok,
   type CollaborationError,
   type CollaborationProvider,
   type ConnectOptions,
+  type CreateTransport,
   type Result,
 } from '@canvash/collaboration';
+import { createMemoryTransport } from './memory-transport.js';
 import { CollaborativeServerEmulator } from './server-emulator.js';
 import { YjsCollaborationSession } from './session.js';
 import { DeterministicTransportHub } from './transport.js';
 
 export interface YjsProviderOptions {
+  /**
+   * Fábrica do transporte de rede. Com ela, o provider não usa o emulador nem o hub em memória.
+   * Sem ela, as sessões falam com `server` por `transport`, no mesmo processo.
+   */
+  createTransport?: CreateTransport;
   server?: CollaborativeServerEmulator;
   transport?: DeterministicTransportHub;
 }
@@ -20,11 +26,12 @@ export class YjsCollaborationProvider implements CollaborationProvider {
   public readonly name = 'yjs';
   private readonly server: CollaborativeServerEmulator;
   private readonly transport: DeterministicTransportHub;
-  private sessionCounter = 0;
+  private readonly createTransport: CreateTransport;
 
   constructor(options: YjsProviderOptions = {}) {
     this.server = options.server ?? new CollaborativeServerEmulator();
     this.transport = options.transport ?? new DeterministicTransportHub(this.server);
+    this.createTransport = options.createTransport ?? createMemoryTransport(this.transport);
   }
 
   getServer(): CollaborativeServerEmulator {
@@ -38,33 +45,40 @@ export class YjsCollaborationProvider implements CollaborationProvider {
   async connect(
     options: ConnectOptions,
   ): Promise<Result<YjsCollaborationSession, CollaborationError>> {
-    // 1. Verificação de credenciais e autorização (COLLAB-06)
-    if (options.credentials?.token === 'invalid_token') {
-      return err(
-        createCollaborationError(
-          'UNAUTHORIZED',
-          'Credenciais de autorização rejeitadas pelo backend',
-        ),
-      );
+    // O host vê a entrada começar antes de haver sessão.
+    options.onStatusChange?.('connecting');
+    const sessionId = crypto.randomUUID();
+    const transport = this.createTransport({ documentId: options.documentId, sessionId });
+
+    // O handshake vem antes da sessão: credencial e epoch (COLLAB-06, COLLAB-14) são conferidas
+    // por quem está do outro lado do transporte. Nas reconexões, o `hello` é o da sessão, com o
+    // vetor de estado atual.
+    const current: { session?: YjsCollaborationSession } = {};
+    const welcome = await transport.open(
+      () =>
+        current.session?.createHello() ?? {
+          provider: this.name,
+          documentId: options.documentId,
+          sessionId,
+          ...(options.roomEpoch === undefined ? {} : { roomEpoch: options.roomEpoch }),
+          ...(options.credentials === undefined ? {} : { credentials: options.credentials }),
+          syncState: new Uint8Array(),
+        },
+    );
+    if (!welcome.ok) {
+      transport.close();
+      options.onStatusChange?.('error', welcome.error);
+      return err(welcome.error);
     }
 
-    // 2. Verificação de compatibilidade de roomEpoch (COLLAB-14)
-    const serverEpoch = this.server.getRoomEpoch();
-    if (options.roomEpoch && options.roomEpoch !== serverEpoch) {
-      return err(
-        createCollaborationError(
-          'ROOM_EPOCH_MISMATCH',
-          `Room epoch incompatível: esperado "${options.roomEpoch}", atual no servidor "${serverEpoch}"`,
-          { clientEpoch: options.roomEpoch, serverEpoch },
-        ),
-      );
-    }
-
-    const sessionId = `sess_${++this.sessionCounter}_${Math.random().toString(36).slice(2, 8)}`;
-    const snapshot = this.server.getSnapshot();
-
-    const session = new YjsCollaborationSession(this.transport, options, sessionId, snapshot);
-
+    const session = new YjsCollaborationSession(
+      transport,
+      options,
+      sessionId,
+      welcome.value,
+      this.createTransport,
+    );
+    current.session = session;
     return ok(session);
   }
 }

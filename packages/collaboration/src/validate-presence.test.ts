@@ -138,4 +138,13 @@ describe('validatePresence (US-PC.1)', () => {
       field: 'drag.dx',
     });
   });
+
+  it('aceita receivedAt, o carimbo de chegada que a sessão acrescenta, e recusa o que não é número finito', () => {
+    expect(validatePresence({ sessionId: 's', receivedAt: 1_000 }).ok).toBe(true);
+    const text = validatePresence({ receivedAt: 'x' });
+    const infinite = validatePresence({ receivedAt: Number.POSITIVE_INFINITY });
+
+    expect(!text.ok && text.error).toEqual({ reason: 'INVALID_SHAPE', field: 'receivedAt' });
+    expect(!infinite.ok && infinite.error).toEqual({ reason: 'NOT_FINITE', field: 'receivedAt' });
+  });
 });

@@ -64,17 +64,23 @@ describe('Collaboration Edge Cases & Branch Coverage', () => {
       color: '#00ff00',
       cursor: { x: 100, y: 100 },
       selection: ['shape-1'],
-      updatedAt: 1000, // No passado
+      updatedAt: 1000, // No passado, no relógio de quem publicou
     });
+    const arrival = Date.now();
     expect(awareness.getPresences().length).toBe(1);
 
-    // Purge com timestamp posterior deve expirar sess-2
     let notifiedPresences: unknown = null;
     awareness.subscribe((presences) => {
       notifiedPresences = presences;
     });
 
-    awareness.purgeExpired(5000, 10000); // 1000 + 5000 < 10000 => expirado
+    // O carimbo antigo de quem publicou não expira a presença: o prazo conta da chegada (R18)
+    awareness.purgeExpired(5000, arrival + 4000);
+    expect(awareness.getPresences().length).toBe(1);
+    expect(notifiedPresences).toBeNull();
+
+    // Purge depois do prazo, contado da chegada, expira sess-2
+    awareness.purgeExpired(5000, arrival + 6000);
     expect(awareness.getPresences().length).toBe(0);
     expect(notifiedPresences).toEqual([]);
 
@@ -614,7 +620,7 @@ describe('Collaboration Edge Cases & Branch Coverage', () => {
         () => {},
       );
 
-      // Presença registrada com timestamp expirado
+      // Presença de um emissor com o relógio 40 s atrasado: o prazo conta da chegada (R18)
       awareness.handleRemoteUpdate({
         sessionId: 'sess-remote-old',
         userId: 'uOld',
@@ -626,8 +632,12 @@ describe('Collaboration Edge Cases & Branch Coverage', () => {
       });
       expect(awareness.getPresences().length).toBe(1);
 
-      // Avança timer do setInterval para rodar purgeExpired
+      // 15 s depois da chegada ela continua: o atraso do relógio do emissor não a expira
       vi.advanceTimersByTime(15000);
+      expect(awareness.getPresences().length).toBe(1);
+
+      // Passado o timeout de 30 s desde a chegada, o timer do setInterval a purga
+      vi.advanceTimersByTime(16000);
       expect(awareness.getPresences().length).toBe(0);
 
       awareness.destroy();

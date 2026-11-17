@@ -1,6 +1,6 @@
 // release-packages.mjs — fonte única de quais pacotes têm constante de versão e do que
 // "versão coerente" quer dizer. Reaproveitado por scripts/set-version.mjs e pelos testes.
-// Só as sete constantes de versão do PACOTE entram: SCHEMA_VERSION (core), COLLABORATION_VERSION e
+// Só as oito constantes de versão do PACOTE entram: SCHEMA_VERSION (core), COLLABORATION_VERSION e
 // COLLABORATION_YJS_VERSION são versões de formato e de protocolo e não acompanham a publicação.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -11,6 +11,7 @@ const defaultPackagesDir = fileURLToPath(new URL('../packages/', import.meta.url
 
 /** Pasta de `packages/*` → nome da constante em `src/version.ts`. */
 export const VERSION_CONSTANTS = {
+  'collaboration-server': 'COLLABORATION_SERVER_VERSION',
   export: 'EXPORT_VERSION',
   interaction: 'INTERACTION_VERSION',
   persistence: 'PERSISTENCE_VERSION',

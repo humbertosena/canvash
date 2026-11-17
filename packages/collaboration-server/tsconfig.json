@@ -1,0 +1,15 @@
+{
+  // Servidor Node, sem DOM: a lib é a do tsconfig.base.json, e os globais de Node (timers,
+  // `Headers`, `crypto`, `node:fs`) entram por `types`.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    { "path": "../core" },
+    { "path": "../collaboration" },
+    { "path": "../collaboration-yjs" }
+  ]
+}
