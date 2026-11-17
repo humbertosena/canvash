@@ -14,7 +14,7 @@ import {
   type TransportWelcome,
 } from '@canvash/collaboration';
 import type { LocalAwarenessState } from './awareness.js';
-import type { DeterministicTransportHub, TransportMessage } from './transport.js';
+import type { DeterministicTransportHub, MemoryLink, TransportMessage } from './transport.js';
 
 /** Código de fechamento do enlace que perdeu o lugar para outro com o mesmo `sessionId`. */
 const CLOSE_REPLACED = 4001;
@@ -28,6 +28,10 @@ const COMMIT_ERRORS: Readonly<Record<string, { code: CollaborationErrorCode; mes
   INVALID_DOCUMENT: {
     code: 'INVALID_DOCUMENT',
     message: 'O update não é um update válido do provider',
+  },
+  STORAGE_UNAVAILABLE: {
+    code: 'STORAGE_UNAVAILABLE',
+    message: 'O servidor não conseguiu gravar o commit',
   },
   NETWORK_PARTITION: { code: 'DISCONNECTED', message: 'O commit não chegou ao servidor' },
   CRASHED: { code: 'DISCONNECTED', message: 'O servidor não respondeu ao commit' },
@@ -49,12 +53,16 @@ function notOpen(): CollaborationError {
 
 /**
  * O hub em memória como implementação de `CollaborationTransport`: handshake, commits, sync e
- * presença passam pelo servidor emulado do hub, com as mesmas opções de atraso, perda e
- * duplicação. Serve a testes e ao exemplo local; não há rede.
+ * presença passam pelo servidor emulado do hub, com as mesmas opções de atraso, perda,
+ * duplicação e reordenação. `hub.dropLink` e `hub.restoreLink` simulam a queda e a volta do
+ * enlace. Serve a testes e ao exemplo local; não há rede.
  */
 export function createMemoryTransport(hub: DeterministicTransportHub): CreateTransport {
   return ({ sessionId }): CollaborationTransport => {
     let state: TransportState = 'idle';
+    let currentHello: (() => TransportHello) | null = null;
+    /** Muda a cada queda: a resposta de um pedido feito antes dela não vale mais. */
+    let linkGeneration = 0;
     const inboundListeners = new Set<(message: TransportInbound) => void>();
     const stateListeners = new Set<(state: TransportState, error?: CollaborationError) => void>();
 
@@ -67,31 +75,54 @@ export function createMemoryTransport(hub: DeterministicTransportHub): CreateTra
       for (const listener of [...inboundListeners]) listener(message);
     };
 
-    const onMessage = (msg: TransportMessage): void => {
-      if (state !== 'open') return;
-      if (msg.type === 'presence') {
-        deliver({ type: 'presence', from: msg.senderSessionId, state: msg.payload });
-        return;
-      }
-      if (msg.payload instanceof Uint8Array && msg.commitId !== undefined) {
-        deliver({
-          type: 'update',
-          commitId: msg.commitId,
-          from: msg.senderSessionId,
-          update: msg.payload,
-        });
-      }
-    };
+    const link: MemoryLink = {
+      deliver(msg: TransportMessage): void {
+        if (state !== 'open') return;
+        if (msg.type === 'presence') {
+          deliver({ type: 'presence', from: msg.senderSessionId, state: msg.payload });
+          return;
+        }
+        if (msg.payload instanceof Uint8Array && msg.commitId !== undefined) {
+          deliver({
+            type: 'update',
+            commitId: msg.commitId,
+            from: msg.senderSessionId,
+            update: msg.payload,
+          });
+        }
+      },
 
-    const onReplaced = (): void => {
-      if (state === 'closed') return;
-      setState(
-        'closed',
-        createCollaborationError('DISCONNECTED', 'O enlace foi substituído por outra conexão', {
-          closeCode: CLOSE_REPLACED,
-          reason: 'replaced',
-        }),
-      );
+      replaced(): void {
+        if (state === 'closed') return;
+        linkGeneration += 1;
+        setState(
+          'closed',
+          createCollaborationError('DISCONNECTED', 'O enlace foi substituído por outra conexão', {
+            closeCode: CLOSE_REPLACED,
+            reason: 'replaced',
+          }),
+        );
+      },
+
+      dropped(): void {
+        if (state !== 'open') return;
+        linkGeneration += 1;
+        setState('reconnecting');
+      },
+
+      restored(): void {
+        if (state !== 'reconnecting' || currentHello === null) return;
+        const welcome = hub.handshake(currentHello());
+        if (!welcome.ok) {
+          // Erro de handshake na reconexão é fatal: tentar de novo daria o mesmo resultado.
+          setState('closed', welcome.error);
+          return;
+        }
+        hub.attachLink(sessionId, link);
+        // Primeiro `open`, depois o `resync`: quem o recebe já pode reenviar pendências.
+        setState('open');
+        deliver({ type: 'resync', welcome: welcome.value });
+      },
     };
 
     return {
@@ -110,13 +141,14 @@ export function createMemoryTransport(hub: DeterministicTransportHub): CreateTra
             ),
           );
         }
+        currentHello = getHello;
         setState('connecting');
         const welcome = hub.handshake(getHello());
         if (!welcome.ok) {
           setState('closed', welcome.error);
           return Promise.resolve(welcome);
         }
-        hub.attachLink(sessionId, onMessage, onReplaced);
+        hub.attachLink(sessionId, link);
         setState('open');
         return Promise.resolve(welcome);
       },
@@ -127,7 +159,11 @@ export function createMemoryTransport(hub: DeterministicTransportHub): CreateTra
         roomEpoch: string,
       ): Promise<Result<CommitReceipt, CollaborationError>> {
         if (state !== 'open') return err(notOpen());
+        const generation = linkGeneration;
         const result = await hub.sendUpdate(sessionId, commitId, update, roomEpoch);
+        // O enlace caiu com o pedido em voo: a resposta se perdeu, mesmo que o servidor tenha
+        // gravado. Quem reenviar o mesmo `commitId` recebe o recibo.
+        if (generation !== linkGeneration) return err(notOpen());
         return result.ok ? ok(result.receipt) : err(commitError(result.code));
       },
 
@@ -160,9 +196,9 @@ export function createMemoryTransport(hub: DeterministicTransportHub): CreateTra
 
       close(): void {
         if (state === 'closed') return;
-        const wasOpen = state === 'open';
+        linkGeneration += 1;
         setState('closed');
-        if (wasOpen) hub.detachLink(sessionId, onReplaced);
+        hub.detachLink(sessionId, link);
         inboundListeners.clear();
         stateListeners.clear();
       },

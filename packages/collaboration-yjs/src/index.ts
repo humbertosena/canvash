@@ -20,6 +20,7 @@ export {
 export { createMemoryTransport } from './memory-transport.js';
 export {
   DeterministicTransportHub,
+  type MemoryLink,
   type TransportMessage,
   type TransportNetworkOptions,
 } from './transport.js';
