@@ -121,6 +121,7 @@ afterAll(() => {
 });
 
 describe('@canvash/collaboration-server packaging contract', () => {
+  // Os tipos que as duas entradas dividem saem num bloco em `dist/shared/`, dentro do `dist`.
   it('contém só o manifesto, o dist e os arquivos de apoio', () => {
     expect(tarballFiles).toEqual(
       expect.arrayContaining([
@@ -137,7 +138,7 @@ describe('@canvash/collaboration-server packaging contract', () => {
     const unexpected = tarballFiles.filter(
       (file) =>
         !/^(package\.json|(README|LICEN[CS]E|CHANGELOG)(\.md)?)$/i.test(file) &&
-        !/^dist\/[\w.-]+\.(mjs|cjs|d\.mts|d\.cts)(\.map)?$/.test(file),
+        !/^dist\/(shared\/)?[\w.-]+\.(mjs|cjs|d\.mts|d\.cts)(\.map)?$/.test(file),
     );
     expect(unexpected).toEqual([]);
     expect(tarballFiles.filter((file) => /\.test\./.test(file))).toEqual([]);
@@ -234,4 +235,154 @@ describe('@canvash/collaboration-server packaging contract', () => {
       });
     }
   });
+});
+
+// --- Armazenamento de salas e a entrada /testing ---
+
+const STORAGE_SMOKE_BODY = `
+async function main() {
+  const cases = roomStorageContractCases(() => createMemoryRoomStorage(), {
+    reopen: (storage) => storage,
+  });
+  let passed = 0;
+  for (const contractCase of cases) {
+    await contractCase.run();
+    passed += 1;
+  }
+  console.log(
+    JSON.stringify({
+      testingEntry: testingResolved.split('/@canvash/collaboration-server/')[1],
+      cases: cases.length >= 15,
+      skipped: cases.filter((contractCase) => contractCase.skipped !== undefined).length,
+      passed: passed === cases.length,
+    }),
+  );
+}
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+`;
+
+const STORAGE_TYPED_USAGE = `
+import {
+  createMemoryRoomStorage,
+  type AppendBatch,
+  type RoomStorage,
+  type StoredCommit,
+  type StoredRoom,
+} from '@canvash/collaboration-server';
+import {
+  roomStorageContractCases,
+  type ContractCase,
+  type RoomStorageContractOptions,
+} from '@canvash/collaboration-server/testing';
+
+export const storage: RoomStorage = createMemoryRoomStorage();
+export const options: RoomStorageContractOptions = { keepsReceipts: true };
+export const cases: readonly ContractCase[] = roomStorageContractCases(() => storage, options);
+
+export function sizeOf(room: StoredRoom, commit: StoredCommit, batch: AppendBatch): number {
+  return room.snapshot.byteLength + commit.update.byteLength + batch.commits.length;
+}
+`;
+
+describe('@canvash/collaboration-server: armazenamento de salas e entrada /testing', () => {
+  const EXPECTED = { cases: true, skipped: 0, passed: true };
+
+  it('o tarball traz a entrada /testing ao lado da principal', () => {
+    expect(tarballFiles).toEqual(
+      expect.arrayContaining([
+        'dist/testing.mjs',
+        'dist/testing.cjs',
+        'dist/testing.d.mts',
+        'dist/testing.d.cts',
+      ]),
+    );
+    const pkg = JSON.parse(
+      readFileSync(
+        join(projectDir, 'node_modules', '@canvash', 'collaboration-server', 'package.json'),
+        'utf8',
+      ),
+    ) as { exports: Record<string, unknown> };
+    expect(pkg.exports['./testing']).toEqual({
+      import: { types: './dist/testing.d.mts', default: './dist/testing.mjs' },
+      require: { types: './dist/testing.d.cts', default: './dist/testing.cjs' },
+    });
+  });
+
+  for (const bin of nodeBinaries) {
+    it(`a suíte de contrato, importada do tarball, passa com o armazenamento em memória via ESM em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'storage-import.mjs');
+      writeFileSync(
+        scriptPath,
+        `import { createMemoryRoomStorage } from '@canvash/collaboration-server';\n` +
+          `import { roomStorageContractCases } from '@canvash/collaboration-server/testing';\n` +
+          `const testingResolved = import.meta.resolve('@canvash/collaboration-server/testing');\n` +
+          STORAGE_SMOKE_BODY,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        ...EXPECTED,
+        testingEntry: 'dist/testing.mjs',
+      });
+    });
+
+    it(`a suíte de contrato, importada do tarball, passa com o armazenamento em memória via CJS em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'storage-require.cjs');
+      writeFileSync(
+        scriptPath,
+        `const { createMemoryRoomStorage } = require('@canvash/collaboration-server');\n` +
+          `const { roomStorageContractCases } = require('@canvash/collaboration-server/testing');\n` +
+          `const testingResolved = require.resolve('@canvash/collaboration-server/testing');\n` +
+          STORAGE_SMOKE_BODY,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        ...EXPECTED,
+        testingEntry: 'dist/testing.cjs',
+      });
+    });
+  }
+
+  for (const consumer of TYPE_CONSUMERS) {
+    it(`o armazenamento e a entrada /testing compilam sob ${consumer.name}`, () => {
+      const testSubdir = join(projectDir, `typecheck-storage-${consumer.name}`);
+      mkdirSync(testSubdir, { recursive: true });
+      const ext = consumer.type === 'module' ? 'mts' : 'cts';
+      writeFileSync(join(testSubdir, `consumer.${ext}`), STORAGE_TYPED_USAGE, 'utf8');
+      const tsconfigPath = join(testSubdir, 'tsconfig.json');
+      writeFileSync(
+        tsconfigPath,
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: consumer.module,
+            moduleResolution: consumer.resolution,
+            strict: true,
+            noEmit: true,
+            skipLibCheck: false,
+          },
+          include: [`consumer.${ext}`],
+        }),
+        'utf8',
+      );
+
+      const result = spawnSync(process.execPath, [tsc, '-p', tsconfigPath], {
+        cwd: testSubdir,
+        encoding: 'utf8',
+      });
+
+      expect(result.stdout).toBe('');
+      expect(result.status).toBe(0);
+    });
+  }
 });

@@ -1,9 +1,8 @@
 import { defineBuildConfig } from 'unbuild';
 
 export default defineBuildConfig({
-  // Um bundle por entrada pública. As entradas `./ws` e `./testing` entram com as tarefas que
-  // criam o conteúdo delas.
-  entries: ['src/index'],
+  // Um bundle por entrada pública. A entrada `./ws` entra com a tarefa que cria o adaptador.
+  entries: ['src/index', { input: 'src/testing/index', name: 'testing' }],
   declaration: 'node16',
   sourcemap: true,
   clean: true,
