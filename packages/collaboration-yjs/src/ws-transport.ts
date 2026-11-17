@@ -19,7 +19,12 @@ import {
   type TransportState,
   type TransportWelcome,
 } from '@canvash/collaboration';
-import { resolveBackoff, type BackoffOptions } from './backoff.js';
+import {
+  backoffDelay,
+  resolveBackoff,
+  type BackoffOptions,
+  type ResolvedBackoff,
+} from './backoff.js';
 
 /** O que o transporte usa de um `WebSocket`: o do navegador, o global do Node ou o do pacote `ws`. */
 export interface WebSocketLike {
@@ -73,6 +78,8 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_PRESENCE_BACKPRESSURE_BYTES = 1024 * 1024;
 const NORMAL_CLOSURE = 1000;
 const PROTOCOL_ERROR_CLOSURE = 1002;
+/** Quanto tempo em `open` zera o backoff. */
+const STABLE_OPEN_MS = 10_000;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
 interface Config {
@@ -82,6 +89,8 @@ interface Config {
   readonly maxFrameBytes: number;
   readonly presenceBackpressureBytes: number;
   readonly WebSocket: WebSocketConstructorLike;
+  readonly backoff: ResolvedBackoff;
+  readonly random: () => number;
 }
 
 function failure(
@@ -159,7 +168,13 @@ function resolveConfig(options: WebSocketTransportOptions): Result<Config, Colla
       }),
     );
   }
-  return ok({ url: options.url, ...numbers, WebSocket: WebSocketCtor });
+  return ok({
+    url: options.url,
+    ...numbers,
+    WebSocket: WebSocketCtor,
+    backoff: backoff.value,
+    random: options.random ?? Math.random,
+  });
 }
 
 /** Os bytes de um quadro recebido, ou `undefined` se não é binário. */
@@ -173,6 +188,64 @@ function toBytes(data: unknown): Uint8Array | undefined {
 
 function errorOf(message: Extract<ServerMessage, { t: 'error' }>): CollaborationError {
   return createCollaborationError(message.code, message.message, message.details);
+}
+
+/** Os erros que encerram as tentativas: tentar de novo não muda o que o servidor respondeu. */
+const STOPPING_CODES: ReadonlySet<CollaborationError['code']> = new Set([
+  'UNAUTHORIZED',
+  'NOT_FOUND',
+  'ROOM_EPOCH_MISMATCH',
+  'UNSUPPORTED_VERSION',
+  'UNSUPPORTED',
+  'PROTOCOL_ERROR',
+  'INVALID_DOCUMENT',
+]);
+
+function isStopping(error: CollaborationError): boolean {
+  if (STOPPING_CODES.has(error.code)) return true;
+  // Sala cheia passa; o `welcome` que não cabe no quadro não passa nunca.
+  return (
+    error.code === 'LIMIT_EXCEEDED' &&
+    typeof error.details === 'object' &&
+    error.details !== null &&
+    (error.details as { reason?: unknown }).reason === 'welcome'
+  );
+}
+
+/** O erro de um fechamento que encerra as tentativas, ou `undefined` se vale tentar de novo. */
+function stoppingCloseError(code: number | undefined): CollaborationError | undefined {
+  switch (code) {
+    case 4001:
+      return createCollaborationError('CONFLICT', 'A sessão foi substituída por outra conexão.', {
+        reason: 'replaced',
+        closeCode: code,
+      });
+    case 4003:
+      return createCollaborationError(
+        'UNAUTHORIZED',
+        'O servidor não aceita a origem desta página.',
+        {
+          reason: 'origin',
+          closeCode: code,
+        },
+      );
+    case 4000:
+      return createCollaborationError(
+        'PROTOCOL_ERROR',
+        'O servidor encerrou a conexão por erro fatal.',
+        {
+          reason: 'fatal_close',
+          closeCode: code,
+        },
+      );
+    case 1009:
+      return createCollaborationError('LIMIT_EXCEEDED', 'Um quadro passou do limite do servidor.', {
+        reason: 'frame',
+        closeCode: code,
+      });
+    default:
+      return undefined;
+  }
 }
 
 interface PendingRequest {
@@ -192,14 +265,25 @@ export function createWebSocketTransport(options: WebSocketTransportOptions): Cr
 function createTransport(options: WebSocketTransportOptions): CollaborationTransport {
   let state: TransportState = 'idle';
   let config: Config | undefined;
+  let getHello: (() => TransportHello) | undefined;
   let socket: WebSocketLike | undefined;
+  let detachSocket: (() => void) | undefined;
+  /** O socket atual já passou do `welcome`. */
+  let established = false;
+  /** O primeiro `open` já deu certo: a partir daí uma queda reconecta. */
+  let hasOpened = false;
+  /** Há uma tentativa de conexão em andamento (credenciais, socket ou handshake). */
+  let attempting = false;
+  let attempt = 0;
   let nextId = 1;
   const pending = new Map<number, PendingRequest>();
   const inboundListeners = new Set<(message: TransportInbound) => void>();
   const stateListeners = new Set<(state: TransportState, error?: CollaborationError) => void>();
   let finishOpen: ((result: Result<TransportWelcome, CollaborationError>) => void) | undefined;
   let openTimer: ReturnType<typeof setTimeout> | undefined;
-  let detachSocket: (() => void) | undefined;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let stableTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopWatching: (() => void) | undefined;
 
   /** O estado agora, sem o estreitamento de tipos que um `await` pelo meio desfaz. */
   function currentState(): TransportState {
@@ -229,8 +313,6 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
   }
 
   function settleOpen(result: Result<TransportWelcome, CollaborationError>): void {
-    clearTimeout(openTimer);
-    openTimer = undefined;
     const resolve = finishOpen;
     finishOpen = undefined;
     resolve?.(result);
@@ -250,6 +332,9 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
     detachSocket = undefined;
     const current = socket;
     socket = undefined;
+    established = false;
+    clearTimeout(openTimer);
+    openTimer = undefined;
     try {
       current?.close(code);
     } catch {
@@ -261,11 +346,14 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
   function terminate(error: CollaborationError | undefined, closeCode = NORMAL_CLOSURE): void {
     if (state === 'closed') return;
     dropSocket(closeCode);
-    clearTimeout(openTimer);
-    openTimer = undefined;
+    clearTimeout(reconnectTimer);
+    clearTimeout(stableTimer);
+    reconnectTimer = undefined;
+    stableTimer = undefined;
+    stopWatching?.();
+    stopWatching = undefined;
     failPending(disconnected('O enlace foi fechado.'));
-    if (error !== undefined) settleOpen(err(error));
-    else settleOpen(err(disconnected('O enlace foi fechado antes do handshake terminar.')));
+    settleOpen(err(error ?? disconnected('O enlace foi fechado antes do handshake terminar.')));
     setState('closed', error);
   }
 
@@ -273,37 +361,108 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
     terminate(createCollaborationError('PROTOCOL_ERROR', message), PROTOCOL_ERROR_CLOSURE);
   }
 
-  function handleMessage(message: ServerMessage): void {
-    if (state === 'connecting') {
-      if (message.t === 'welcome') {
-        if (message.v !== PROTOCOL_VERSION) {
-          terminate(
-            createCollaborationError(
-              'UNSUPPORTED_VERSION',
-              `O servidor fala a versão ${message.v} do protocolo.`,
-              { supported: [PROTOCOL_VERSION] },
-            ),
-          );
-          return;
-        }
-        const welcome: TransportWelcome = {
-          roomEpoch: message.roomEpoch,
-          access: message.access,
-          missing: message.missing,
-          serverSyncState: message.serverSyncState,
-          serverTime: message.serverTime,
-          ...(message.user === undefined ? {} : { user: message.user }),
-        };
-        clearTimeout(openTimer);
-        openTimer = undefined;
-        setState('open');
-        settleOpen(ok(welcome));
-      } else if (message.t === 'error') {
-        terminate(errorOf(message));
-      }
+  /** O enlace caiu, mas vale tentar de novo: pedidos em aberto voltam `DISCONNECTED` e o backoff corre. */
+  function linkLost(cause: CollaborationError): void {
+    if (state === 'closed') return;
+    dropSocket(NORMAL_CLOSURE);
+    clearTimeout(stableTimer);
+    stableTimer = undefined;
+    attempting = false;
+    failPending(disconnected('O enlace caiu.'));
+    setState('reconnecting', cause);
+    scheduleReconnect();
+  }
+
+  function scheduleReconnect(): void {
+    const resolved = config;
+    if (resolved === undefined || reconnectTimer !== undefined) return;
+    const wait = backoffDelay(attempt, resolved.backoff, resolved.random);
+    attempt += 1;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = undefined;
+      void connectOnce();
+    }, wait);
+  }
+
+  /** `online` ou a aba visível de novo: não espera o backoff. */
+  function reconnectNow(): void {
+    if (currentState() !== 'reconnecting' || reconnectTimer === undefined) return;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+    void connectOnce();
+  }
+
+  function watchWindow(): void {
+    const win = (globalThis as { window?: EventTarget }).window;
+    const doc = (globalThis as { document?: EventTarget & { visibilityState?: string } }).document;
+    if (win === undefined) return;
+    const onOffline = (): void => {
+      if (currentState() === 'open') linkLost(disconnected('O navegador ficou sem rede.'));
+    };
+    const onOnline = (): void => reconnectNow();
+    const onVisibility = (): void => {
+      if (doc?.visibilityState === 'visible') reconnectNow();
+    };
+    win.addEventListener('offline', onOffline);
+    win.addEventListener('online', onOnline);
+    doc?.addEventListener('visibilitychange', onVisibility);
+    stopWatching = () => {
+      win.removeEventListener('offline', onOffline);
+      win.removeEventListener('online', onOnline);
+      doc?.removeEventListener('visibilitychange', onVisibility);
+    };
+  }
+
+  /** Falha antes de o enlace estar aberto: na primeira vez encerra, depois só o que não adianta repetir. */
+  function handshakeFailed(error: CollaborationError): void {
+    if (!hasOpened || isStopping(error)) terminate(error);
+    else linkLost(error);
+  }
+
+  function handleWelcome(message: Extract<ServerMessage, { t: 'welcome' }>): void {
+    if (message.v !== PROTOCOL_VERSION) {
+      terminate(
+        createCollaborationError(
+          'UNSUPPORTED_VERSION',
+          `O servidor fala a versão ${message.v} do protocolo.`,
+          { supported: [PROTOCOL_VERSION] },
+        ),
+      );
       return;
     }
-    if (state !== 'open') return;
+    const welcome: TransportWelcome = {
+      roomEpoch: message.roomEpoch,
+      access: message.access,
+      missing: message.missing,
+      serverSyncState: message.serverSyncState,
+      serverTime: message.serverTime,
+      ...(message.user === undefined ? {} : { user: message.user }),
+    };
+    clearTimeout(openTimer);
+    openTimer = undefined;
+    established = true;
+    attempting = false;
+    stableTimer = setTimeout(() => {
+      stableTimer = undefined;
+      attempt = 0;
+    }, STABLE_OPEN_MS);
+    setState('open');
+    if (!hasOpened) {
+      hasOpened = true;
+      watchWindow();
+      settleOpen(ok(welcome));
+    } else {
+      // O `hello` da reconexão já levou o vetor atual: o `welcome` traz o que falta.
+      emit({ type: 'resync', welcome });
+    }
+  }
+
+  function handleMessage(message: ServerMessage): void {
+    if (!established) {
+      if (message.t === 'welcome') handleWelcome(message);
+      else if (message.t === 'error') handshakeFailed(errorOf(message));
+      return;
+    }
     switch (message.t) {
       case 'ack':
       case 'synced': {
@@ -317,7 +476,9 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
       case 'error': {
         const error = errorOf(message);
         if (message.fatal) {
-          terminate(error);
+          // A expulsão pelo servidor (documento excluído, acesso revogado) para as tentativas.
+          if (isStopping(error)) terminate(error);
+          else linkLost(error);
           return;
         }
         const request = message.id === undefined ? undefined : pending.get(message.id);
@@ -361,7 +522,18 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
     handleMessage(decoded.value);
   }
 
-  function connect(
+  function onSocketClose(event: WebSocketEventLike): void {
+    const stopping = stoppingCloseError(event.code);
+    if (stopping !== undefined) {
+      terminate(stopping);
+      return;
+    }
+    handshakeFailed(
+      failure('O servidor fechou a conexão.', { reason: 'closed', closeCode: event.code }),
+    );
+  }
+
+  function openSocket(
     resolved: Config,
     hello: TransportHello,
     credentials: CollaborationCredentials | undefined,
@@ -369,6 +541,7 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
     const created = new resolved.WebSocket(resolved.url);
     created.binaryType = 'arraybuffer';
     socket = created;
+    established = false;
     const onOpen = (): void => {
       try {
         created.send(
@@ -384,35 +557,57 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
           }),
         );
       } catch {
-        terminate(failure('Não foi possível enviar o hello.', { reason: 'hello_failed' }));
+        handshakeFailed(failure('Não foi possível enviar o hello.', { reason: 'hello_failed' }));
       }
-    };
-    const onClose = (event: WebSocketEventLike): void => {
-      terminate(
-        failure('O servidor fechou a conexão.', {
-          reason: 'closed',
-          closeCode: event.code,
-        }),
-      );
     };
     const onError = (): void => undefined;
     created.addEventListener('open', onOpen);
     created.addEventListener('message', onSocketMessage);
-    created.addEventListener('close', onClose);
+    created.addEventListener('close', onSocketClose);
     created.addEventListener('error', onError);
     detachSocket = () => {
       created.removeEventListener('open', onOpen);
       created.removeEventListener('message', onSocketMessage);
-      created.removeEventListener('close', onClose);
+      created.removeEventListener('close', onSocketClose);
       created.removeEventListener('error', onError);
     };
     openTimer = setTimeout(() => {
-      terminate(
+      handshakeFailed(
         failure(`O welcome não chegou em ${resolved.openTimeoutMs} ms.`, {
           reason: 'open_timeout',
         }),
       );
     }, resolved.openTimeoutMs);
+  }
+
+  /** Uma tentativa de conexão: `getHello`, `getCredentials`, socket e handshake. */
+  async function connectOnce(): Promise<void> {
+    const resolved = config;
+    const makeHello = getHello;
+    if (resolved === undefined || makeHello === undefined || attempting) return;
+    attempting = true;
+    let hello: TransportHello;
+    try {
+      hello = makeHello();
+    } catch {
+      terminate(failure('A sessão não montou o hello.', { reason: 'get_hello_failed' }));
+      return;
+    }
+    let credentials = hello.credentials;
+    if (options.getCredentials !== undefined) {
+      try {
+        credentials = await options.getCredentials();
+      } catch {
+        handshakeFailed(
+          failure('Não foi possível obter as credenciais.', { reason: 'get_credentials_failed' }),
+        );
+        return;
+      }
+    }
+    // O transporte pode ter sido fechado, ou ter caído de novo, enquanto as credenciais eram buscadas.
+    const now = currentState();
+    if (now !== 'connecting' && now !== 'reconnecting') return;
+    openSocket(resolved, hello, credentials);
   }
 
   function request(
@@ -448,7 +643,7 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
       pending.delete(id);
       onResponse(disconnected(`Sem resposta em ${resolved.requestTimeoutMs} ms.`));
       // Sem resposta, o enlace está morto, mesmo que o navegador ainda não tenha percebido.
-      terminate(disconnected('O servidor parou de responder.'));
+      linkLost(disconnected('O servidor parou de responder.'));
     }, resolved.requestTimeoutMs);
     pending.set(id, { resolve: onResponse, timer });
   }
@@ -458,41 +653,24 @@ function createTransport(options: WebSocketTransportOptions): CollaborationTrans
       return state;
     },
 
-    async open(getHello) {
+    open(makeHello) {
       if (state !== 'idle') {
-        return err(failure('O transporte só abre uma vez.', { reason: 'already_opened' }));
+        return Promise.resolve(
+          err(failure('O transporte só abre uma vez.', { reason: 'already_opened' })),
+        );
       }
       const resolved = resolveConfig(options);
       if (!resolved.ok) {
         setState('closed', resolved.error);
-        return resolved;
+        return Promise.resolve(resolved);
       }
       config = resolved.value;
+      getHello = makeHello;
       setState('connecting');
       const result = new Promise<Result<TransportWelcome, CollaborationError>>((resolve) => {
         finishOpen = resolve;
       });
-
-      let hello: TransportHello;
-      try {
-        hello = getHello();
-      } catch {
-        terminate(failure('A sessão não montou o hello.', { reason: 'get_hello_failed' }));
-        return result;
-      }
-      let credentials = hello.credentials;
-      if (options.getCredentials !== undefined) {
-        try {
-          credentials = await options.getCredentials();
-        } catch {
-          terminate(
-            failure('Não foi possível obter as credenciais.', { reason: 'get_credentials_failed' }),
-          );
-          return result;
-        }
-      }
-      // O transporte pode ter sido fechado enquanto as credenciais eram buscadas.
-      if (currentState() === 'connecting') connect(resolved.value, hello, credentials);
+      void connectOnce();
       return result;
     },
 
