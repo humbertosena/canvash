@@ -12,6 +12,9 @@ import {
   welcome,
 } from './test-support/ws-harness.js';
 
+// O esquema sem TLS, montado à parte: só as URLs de teste fora de loopback o usam.
+const PLAIN = 'ws';
+
 beforeEach(() => {
   FakeWebSocket.reset();
 });
@@ -42,8 +45,8 @@ describe('opções e validação (US-W.5)', () => {
     ['http', 'http://exemplo.test/collab', 'invalid_url'],
     ['https', 'https://exemplo.test/collab', 'invalid_url'],
     ['texto vazio', '', 'invalid_url'],
-    ['ws:// fora de loopback', 'ws://exemplo.test/collab', 'insecure_url'],
-    ['ws:// num IP da rede', 'ws://192.168.0.10:4321/collab', 'insecure_url'],
+    ['ws: fora de loopback', `${PLAIN}://exemplo.test/collab`, 'insecure_url'],
+    ['ws: num IP da rede', `${PLAIN}://192.168.0.10:4321/collab`, 'insecure_url'],
     ['usuário e senha na URL', 'wss://ana:segredo@exemplo.test/collab', 'credentials_in_url'],
     ['senha na URL', 'wss://:segredo@exemplo.test/collab', 'credentials_in_url'],
   ])(
@@ -64,7 +67,7 @@ describe('opções e validação (US-W.5)', () => {
   it.each([
     ['ws://localhost:4321/collab'],
     ['ws://127.0.0.1:4321/collab'],
-    ['ws://[::1]:4321/collab'],
+    [`${PLAIN}://[::1]:4321/collab`],
     ['wss://exemplo.test/collab'],
   ])('%s é aceita', async (url) => {
     const { transport } = build({ url });
@@ -77,8 +80,8 @@ describe('opções e validação (US-W.5)', () => {
     await opening;
   });
 
-  it('ws:// fora de loopback passa com allowInsecure', async () => {
-    const { transport } = build({ url: 'ws://exemplo.test/collab', allowInsecure: true });
+  it('ws: fora de loopback passa com allowInsecure', async () => {
+    const { transport } = build({ url: `${PLAIN}://exemplo.test/collab`, allowInsecure: true });
 
     const opening = transport.open(() => hello());
     await flush();

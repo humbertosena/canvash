@@ -16,8 +16,8 @@ describe('consoleLogger (padrão do servidor)', () => {
     consoleLogger.error('erro', { code: 'X', size: 3 });
     consoleLogger.info?.('detalhe', { documentId: 'doc-1' });
 
-    expect(warn).toHaveBeenCalledWith('[canvash-collab] aviso', { documentId: 'doc-1' });
-    expect(error).toHaveBeenCalledWith('[canvash-collab] erro', { code: 'X', size: 3 });
+    expect(warn).toHaveBeenCalledWith('[canvash-collab] %s', 'aviso', { documentId: 'doc-1' });
+    expect(error).toHaveBeenCalledWith('[canvash-collab] %s', 'erro', { code: 'X', size: 3 });
     expect(info).not.toHaveBeenCalled();
     expect(log).not.toHaveBeenCalled();
   });
@@ -27,6 +27,6 @@ describe('consoleLogger (padrão do servidor)', () => {
 
     consoleLogger.warn('só a mensagem');
 
-    expect(warn).toHaveBeenCalledWith('[canvash-collab] só a mensagem');
+    expect(warn).toHaveBeenCalledWith('[canvash-collab] %s', 'só a mensagem');
   });
 });

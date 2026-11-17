@@ -11,16 +11,17 @@ export interface CollaborationServerLogger {
   error(message: string, fields?: LogFields): void;
 }
 
-const PREFIX = '[canvash-collab]';
+// Formato constante: a mensagem entra como argumento, e um `%` nela não vira especificador.
+const FORMAT = '[canvash-collab] %s';
 
 /** Padrão: só `warn` e `error`, no console. */
 export const consoleLogger: CollaborationServerLogger = {
   warn(message, fields) {
-    if (fields === undefined) console.warn(`${PREFIX} ${message}`);
-    else console.warn(`${PREFIX} ${message}`, fields);
+    if (fields === undefined) console.warn(FORMAT, message);
+    else console.warn(FORMAT, message, fields);
   },
   error(message, fields) {
-    if (fields === undefined) console.error(`${PREFIX} ${message}`);
-    else console.error(`${PREFIX} ${message}`, fields);
+    if (fields === undefined) console.error(FORMAT, message);
+    else console.error(FORMAT, message, fields);
   },
 };

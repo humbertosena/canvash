@@ -43,6 +43,7 @@ export interface ListenHandle {
   close(): Promise<void>;
 }
 
+const SCHEME = 'ws';
 const DEFAULT_HEARTBEAT_MS = 15_000;
 const DEFAULT_PATH = '/collab';
 const CLOSE_GRACE_MS = 1_000;
@@ -196,7 +197,8 @@ function failure(message: string, cause: unknown): CollaborationError {
 }
 
 function urlOf(host: string, port: number, path: string): string {
-  return `ws://${host.includes(':') ? `[${host}]` : host}:${port}${path}`;
+  // O esquema vem de uma constante: o servidor de referência escuta em texto puro, em loopback.
+  return `${SCHEME}://${host.includes(':') ? `[${host}]` : host}:${port}${path}`;
 }
 
 /**

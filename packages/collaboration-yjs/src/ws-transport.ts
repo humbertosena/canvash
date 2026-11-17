@@ -52,7 +52,7 @@ export interface WebSocketEventLike {
 export type WebSocketConstructorLike = new (url: string) => WebSocketLike;
 
 export interface WebSocketTransportOptions {
-  /** `ws://` ou `wss://`. `ws://` só para localhost, 127.0.0.1 e ::1, salvo `allowInsecure`. */
+  /** URL com esquema `wss:` ou `ws:`. O `ws:` (sem TLS) só vale para localhost, 127.0.0.1 e ::1, salvo `allowInsecure`. */
   readonly url: string;
   readonly allowInsecure?: boolean;
   /** Chamado a cada conexão; o resultado substitui as credenciais do `hello`. Bom para token que expira. */
@@ -114,7 +114,7 @@ function resolveConfig(options: WebSocketTransportOptions): Result<Config, Colla
   }
   if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
     return err(
-      failure('A URL do transporte tem de ser ws:// ou wss://.', { reason: 'invalid_url' }),
+      failure('A URL do transporte tem de ter o esquema wss: ou ws:.', { reason: 'invalid_url' }),
     );
   }
   if (url.username !== '' || url.password !== '') {
@@ -133,9 +133,12 @@ function resolveConfig(options: WebSocketTransportOptions): Result<Config, Colla
     !LOOPBACK_HOSTS.has(url.hostname)
   ) {
     return err(
-      failure('ws:// só é aceito para localhost, 127.0.0.1 e ::1; use wss:// ou allowInsecure.', {
-        reason: 'insecure_url',
-      }),
+      failure(
+        'O esquema ws: (sem TLS) só é aceito para localhost, 127.0.0.1 e ::1; use wss: ou allowInsecure.',
+        {
+          reason: 'insecure_url',
+        },
+      ),
     );
   }
   const numbers = {

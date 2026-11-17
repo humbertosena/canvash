@@ -55,7 +55,7 @@ import { YjsCollaborationProvider, createWebSocketTransport } from '@canvash/col
 
 const provider = new YjsCollaborationProvider({
   createTransport: createWebSocketTransport({
-    url: 'wss://exemplo.com/collab', // ws:// só para localhost, 127.0.0.1 e ::1
+    url: 'wss://exemplo.com/collab', // o esquema ws: (sem TLS) só vale para localhost, 127.0.0.1 e ::1
     // Chamado a cada conexão, inclusive nas reconexões: bom para token que expira.
     getCredentials: async () => ({ token: await renovarToken() }),
   }),

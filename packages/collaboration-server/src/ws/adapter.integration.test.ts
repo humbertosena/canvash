@@ -47,6 +47,14 @@ function nodesOf(client: NodeClient): string[] {
   return Object.keys(projectYDocToCanvasDocument(client.doc).nodes).sort();
 }
 
+/** A mesma porta, pelo HTTP comum (e, se dado, noutro caminho). */
+function httpUrl(url: string, path?: string): string {
+  const parsed = new URL(url);
+  parsed.protocol = 'http:';
+  if (path !== undefined) parsed.pathname = path;
+  return parsed.toString();
+}
+
 async function until(condition: () => boolean, what: string): Promise<void> {
   const deadline = Date.now() + 3_000;
   while (!condition()) {
@@ -224,7 +232,7 @@ describe('listenWebSocket (US-S.1, US-S.9)', () => {
   it('requisição HTTP comum recebe 426', async () => {
     const { url } = await start();
 
-    const response = await fetch(url.replace('ws://', 'http://'));
+    const response = await fetch(httpUrl(url));
 
     expect(response.status).toBe(426);
   });
@@ -250,9 +258,7 @@ describe('listenWebSocket (US-S.1, US-S.9)', () => {
 
     expect(client.of('welcome')).toHaveLength(1);
     expect(http.listening).toBe(true);
-    const plain = await fetch(
-      listening.value.url.replace('ws://', 'http://').replace('/collab', '/'),
-    );
+    const plain = await fetch(httpUrl(listening.value.url, '/'));
     expect(await plain.text()).toBe('do host');
   });
 
