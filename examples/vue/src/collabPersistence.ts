@@ -13,11 +13,14 @@ import {
 import {
   CollaborativeServerEmulator,
   DeterministicTransportHub,
+  YjsCollaborationProvider,
   YjsCollaborationSession,
+  createWebSocketTransport,
   type LocalAwarenessState,
   type TransportMessage,
 } from '@canvash/collaboration-yjs';
 import * as Y from 'yjs';
+import { parseServerParam } from './serverParam.js';
 import type { CanvasSectionApi, CanvasDocument, CanvasPeer } from '@canvash/core';
 import { boardExportFileName, exportPng, exportSvg } from '@canvash/export';
 import {
@@ -260,6 +263,8 @@ export function createCollabPersistenceManager(
   // Cada sala tem canal e snapshot próprios: `?room=` isola os cenários que compartilham o navegador.
   const room = urlParams?.get('room') ?? '';
   const roomSuffix = room ? `:${room}` : '';
+  // `?server=`: a sala mora no servidor de rede em vez do BroadcastChannel entre abas.
+  const serverUrl = parseServerParam(urlParams?.get('server'));
   const CHANNEL_NAME = `canvash-playground-collab${roomSuffix}`;
   const COLLAB_CANONICAL_KEY = `canvash:collab-canonical-snapshot${roomSuffix}`;
   const RELAYER_ID = 'cross-tab-relayer';
@@ -581,6 +586,52 @@ export function createCollabPersistenceManager(
     session = null;
   };
 
+  /**
+   * Compartilha pelo servidor de rede (`?server=`): o provider abre o WebSocket, reconecta sozinho
+   * e a sala fica gravada no servidor. Não usa o canal entre abas nem o snapshot canônico local.
+   */
+  const startNetworkSharing = async (url: string): Promise<Result<void>> => {
+    const provider = new YjsCollaborationProvider({
+      createTransport: createWebSocketTransport({ url }),
+    });
+    const connected = await provider.connect({
+      documentId: room ? `playground-${room}` : 'playground-collab-doc',
+      section,
+      presenceTimeoutMs,
+      user: { id: myUserId, name: myUserName, color: myColor },
+      onStatusChange: (status, error) => {
+        if (destroyed) return;
+        if (status === 'reconnecting') {
+          onCollabInfoChange?.('👥 Colab: Reconectando…');
+        } else if (status === 'connected' && session !== null) {
+          notifyCollabInfo(session.getPresences());
+        } else if (status === 'error' && sharing === 'on') {
+          // Erro que não adianta repetir (recusa, sala trocada…): a sessão terminou.
+          releaseSharing();
+          setSharing('off');
+          onCollabInfoChange?.(`👥 Colab: erro (${error?.code ?? 'desconhecido'})`);
+        }
+      },
+    });
+    if (!connected.ok) {
+      releaseSharing();
+      setSharing('off');
+      onCollabInfoChange?.(`👥 Colab: sem servidor (${connected.error.code})`);
+      return err(connected.error);
+    }
+    if (destroyed) {
+      connected.value.destroy();
+      return err(createCollaborationError('DISCONNECTED', 'O gerenciador já foi destruído'));
+    }
+    const next = connected.value;
+    session = next;
+    hasShared = true;
+    attachLiveParts(next);
+    setSharing('on');
+    notifyCollabInfo(next.getPresences());
+    return ok(undefined);
+  };
+
   const startSharing = async (): Promise<Result<void>> => {
     if (sharing !== 'off') return ok(undefined);
     setSharing('connecting');
@@ -589,6 +640,7 @@ export function createCollabPersistenceManager(
       sharing = 'off';
       return err(createCollaborationError('DISCONNECTED', 'O gerenciador já foi destruído'));
     }
+    if (serverUrl !== null) return startNetworkSharing(serverUrl);
     // O que a pessoa editou fora do compartilhamento: volta por cima do estado da sala ao religar.
     const localBefore = section.getSnapshot().document;
     try {
