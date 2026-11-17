@@ -1,5 +1,6 @@
 import {
   createCollaborationError,
+  encodeServerMessage,
   err,
   ok,
   type CollaborationError,
@@ -40,6 +41,10 @@ export interface PendingCommit {
 
 export class Room {
   readonly clients = new Map<string, RoomClient>();
+  /** A última presença de cada sessão, para o recém-chegado. Só em memória. */
+  readonly presences = new Map<string, unknown>();
+  /** Presenças descartadas por identidade, formato ou tamanho. */
+  droppedPresence = 0;
   /** Commits que chegaram e ainda não entraram num lote. */
   readonly pending: PendingCommit[] = [];
   /** Há um lote de commits agendado na fila. */
@@ -85,6 +90,14 @@ export class Room {
           },
         ),
       );
+    }
+  }
+
+  /** Manda a presença de `sessionId` a todos os outros clientes, codificada uma vez só. */
+  broadcastPresence(sessionId: string, state: unknown): void {
+    const frame = encodeServerMessage({ t: 'presence', from: sessionId, state });
+    for (const client of this.clients.values()) {
+      if (client.sessionId !== sessionId) client.sendFrame(frame);
     }
   }
 

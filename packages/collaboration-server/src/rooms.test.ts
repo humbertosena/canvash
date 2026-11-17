@@ -116,7 +116,7 @@ describe('salas sob demanda (US-S.13, R12)', () => {
     connect(server);
     await settle();
 
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 1, receipts: 2 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 1, receipts: 2 });
   });
 });
 
@@ -131,7 +131,7 @@ describe('descarga da sala ociosa (R12)', () => {
     const writesBefore = storage.calls.append + storage.calls.compact + storage.calls.reset;
 
     await vi.advanceTimersByTimeAsync(4_999);
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0, receipts: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0, receipts: 0 });
     await vi.advanceTimersByTimeAsync(1);
 
     expect(server.getRoomStats('doc-1')).toBeUndefined();
@@ -180,7 +180,7 @@ describe('descarga da sala ociosa (R12)', () => {
     connection.drop();
     release();
     await vi.advanceTimersByTimeAsync(0);
-    expect(server.getRoomStats('doc-1')).toEqual({ clients: 0, receipts: 0 });
+    expect(server.getRoomStats('doc-1')).toMatchObject({ clients: 0, receipts: 0 });
 
     await vi.advanceTimersByTimeAsync(5_000);
 

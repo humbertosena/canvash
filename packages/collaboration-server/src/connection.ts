@@ -12,6 +12,7 @@ import {
 } from '@canvash/collaboration';
 import { runAuthorize } from './authorize.js';
 import type { CollaborationServerLogger } from './logger.js';
+import { createPresenceChannel, type PresenceChannel, type PresenceOptions } from './presence.js';
 import { SUPPORTED_PROVIDER, type PendingCommit, type Room, type RoomClient } from './room.js';
 import type {
   AuthorizeRequest,
@@ -37,6 +38,7 @@ type Hello = Extract<ClientMessage, { t: 'hello' }>;
 export interface ConnectionContext {
   readonly maxFrameBytes: number;
   readonly maxClientsPerRoom: number;
+  readonly presence: Omit<PresenceOptions, 'now'>;
   readonly helloTimeoutMs: number;
   readonly now: () => number;
   readonly logger: CollaborationServerLogger;
@@ -78,7 +80,8 @@ export function serveConnection(
   let phase: Phase = 'awaiting-hello';
   let room: Room | undefined;
   let client: RoomClient | undefined;
-  const early: ClientMessage[] = [];
+  let presence: PresenceChannel | undefined;
+  const early: Array<{ readonly message: ClientMessage; readonly bytes: number }> = [];
   const unsubscribe: Array<() => void> = [];
 
   const helloTimer = setTimeout(() => {
@@ -107,7 +110,11 @@ export function serveConnection(
     phase = 'closed';
     clearTimeout(helloTimer);
     for (const stop of unsubscribe.splice(0)) stop();
+    presence?.dispose();
     if (room !== undefined && client !== undefined && room.remove(client)) {
+      // Só quem sai de verdade avisa os outros; a conexão substituída (4001) não passa por aqui.
+      room.presences.delete(client.sessionId);
+      room.broadcastPresence(client.sessionId, null);
       context.releaseRoom(room);
     }
     return true;
@@ -250,9 +257,14 @@ export function serveConnection(
       const replaced = joined.add(self);
       // A sessão continua viva na conexão nova: a antiga sai sem aviso aos outros.
       replaced?.close(CLOSE_REPLACED, 'substituída');
+      presence = createPresenceChannel(joined, self, { ...context.presence, now: context.now });
       sendFrame(welcomeFrame);
+      // O recém-chegado vê quem já está na sala (R17).
+      for (const [sessionId, state] of joined.presences) {
+        if (sessionId !== self.sessionId) send({ t: 'presence', from: sessionId, state });
+      }
       phase = 'joined';
-      for (const message of early.splice(0)) route(message);
+      for (const { message, bytes } of early.splice(0)) route(message, bytes);
     } finally {
       // Quem não chegou a entrar deixa a sala para a descarga por ociosidade.
       if (client === undefined) context.releaseRoom(joined);
@@ -289,7 +301,7 @@ export function serveConnection(
     });
   }
 
-  function route(message: ClientMessage): void {
+  function route(message: ClientMessage, bytes: number): void {
     if (phase !== 'joined' || room === undefined) return;
     switch (message.t) {
       case 'hello':
@@ -312,6 +324,9 @@ export function serveConnection(
       }
       case 'commit':
         handleCommit(message);
+        return;
+      case 'presence':
+        presence?.receive(message.state, bytes);
         return;
       case 'bye':
         closeWith(CLOSE_NORMAL, 'bye');
@@ -343,10 +358,10 @@ export function serveConnection(
         });
         return;
       case 'joining':
-        early.push(message);
+        early.push({ message, bytes: frame.byteLength });
         return;
       default:
-        route(message);
+        route(message, frame.byteLength);
     }
   }
 

@@ -60,6 +60,10 @@ export interface CollaborationServerOptions {
   readonly maxRooms?: number;
   /** Tempo sem clientes até a sala sair da memória. Padrão 60 s. */
   readonly roomIdleMs?: number;
+  /** Maior presença aceita, em bytes do quadro. Acima disso é descartada. Padrão 16 KiB. */
+  readonly maxPresenceBytes?: number;
+  /** Presenças repassadas por sessão e por segundo. Padrão 20 (`MAX_PRESENCE_RATE_HZ`). */
+  readonly presenceRateHz?: number;
   /** Commits por gravação: o lote fecha com este tanto. Padrão 64. */
   readonly maxBatchCommits?: number;
   /** Maior quadro aceito e enviado. Padrão `DEFAULT_MAX_FRAME_BYTES` (32 MiB). */
@@ -77,6 +81,8 @@ export interface RoomStats {
   readonly clients: number;
   /** Recibos que a sala guarda para reenviar o mesmo `ack`. */
   readonly receipts: number;
+  /** Presenças descartadas desde que a sala foi carregada: identidade, formato ou tamanho. */
+  readonly droppedPresence: number;
 }
 
 export interface CollaborationServer {

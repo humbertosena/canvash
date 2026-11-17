@@ -86,6 +86,11 @@ export class TestClient {
     return id;
   }
 
+  /** Manda a presença. */
+  presence(state: unknown): void {
+    this.connection.receive({ t: 'presence', state });
+  }
+
   roomEpoch(): string {
     const welcome = this.connection.messages().find((message) => message.t === 'welcome');
     if (welcome === undefined) throw new Error('sem welcome');

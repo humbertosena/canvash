@@ -1,5 +1,6 @@
 import {
   DEFAULT_MAX_FRAME_BYTES,
+  MAX_PRESENCE_RATE_HZ,
   createCollaborationError,
   err,
   type CollaborationError,
@@ -23,6 +24,7 @@ const DEFAULT_MAX_CLIENTS_PER_ROOM = 50;
 const DEFAULT_MAX_ROOMS = 1000;
 const DEFAULT_ROOM_IDLE_MS = 60_000;
 const DEFAULT_MAX_BATCH_COMMITS = 64;
+const DEFAULT_MAX_PRESENCE_BYTES = 16 * 1024;
 
 interface RoomEntry {
   readonly opening: Promise<Result<Room, CollaborationError>>;
@@ -134,6 +136,10 @@ export function createCollaborationServer(
   const context: ConnectionContext = {
     maxFrameBytes: options.maxFrameBytes ?? DEFAULT_MAX_FRAME_BYTES,
     maxClientsPerRoom: options.maxClientsPerRoom ?? DEFAULT_MAX_CLIENTS_PER_ROOM,
+    presence: {
+      maxPresenceBytes: options.maxPresenceBytes ?? DEFAULT_MAX_PRESENCE_BYTES,
+      minIntervalMs: Math.floor(1000 / Math.max(1, options.presenceRateHz ?? MAX_PRESENCE_RATE_HZ)),
+    },
     helloTimeoutMs: options.helloTimeoutMs ?? DEFAULT_HELLO_TIMEOUT_MS,
     now: options.now ?? Date.now,
     logger,
@@ -161,7 +167,11 @@ export function createCollaborationServer(
       const room = rooms.get(documentId)?.room;
       return room === undefined
         ? undefined
-        : { clients: room.clients.size, receipts: room.receipts.size };
+        : {
+            clients: room.clients.size,
+            receipts: room.receipts.size,
+            droppedPresence: room.droppedPresence,
+          };
     },
   };
 }
