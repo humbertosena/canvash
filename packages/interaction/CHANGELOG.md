@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0-alpha.1 — 2026-11-17
+
+- Sem mudanças: a versão acompanha os demais pacotes.
+
 ## 0.1.0-alpha.1 — 2026-11-15
 
 - O Espaço digitado num campo de texto dentro de um Shadow DOM, como o campo de título da casca `<canvas-section>`, volta a chegar ao campo. O `PointerAdapter` reconhecia o campo editável por `event.target`, que na janela é o host do Shadow DOM: o Espaço levava `preventDefault()` e virava pan, e o título perdia os espaços. Agora a origem do evento vem de `composedPath()[0]`.

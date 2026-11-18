@@ -63,6 +63,9 @@ A página usa `<canvas-section>`: o canvas ocupa a tela inteira e a interface fl
 - `?collab=true`: liga a colaboração em tempo real (Yjs) entre abas **deste** exemplo. Cada exemplo
   roda em uma origem própria, então abas de exemplos diferentes não colaboram entre si; o botão
   "Abrir Nova Aba" abre outra aba do mesmo exemplo.
+- `?collab=true&server=ws://127.0.0.1:4321/collab`: a sala mora no servidor de colaboração em rede,
+  como no exemplo React (o roteiro e as regras do parâmetro estão no [README dele](../react/README.md)).
+  Só vale WebSocket sem TLS em endereço local; com `--origin` no servidor, use a origem deste exemplo.
 
 ## Isolamento
 

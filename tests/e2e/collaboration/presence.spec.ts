@@ -110,4 +110,10 @@ test('US-PC.6: os quatro exemplos não têm código próprio de presença e comp
   }
   const normalized = files.map((source) => source.replace(/appName = '[^']*'/, "appName = 'X'"));
   for (const source of normalized) expect(source).toBe(normalized[0]);
+
+  // O leitor do `?server=` também é uma cópia por exemplo, e tem de ser a mesma nos quatro.
+  const parsers = ['vanilla', 'web-components', 'react', 'vue'].map((example) =>
+    readFileSync(`examples/${example}/src/serverParam.ts`, 'utf8'),
+  );
+  for (const source of parsers) expect(source).toBe(parsers[0]);
 });

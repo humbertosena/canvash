@@ -117,6 +117,7 @@ describe('useReleaseUrls: dependências internas viram arquivos da Release', () 
     expect(changed.sort()).toEqual(
       [
         '@canvash/collaboration',
+        '@canvash/collaboration-server',
         '@canvash/collaboration-yjs',
         '@canvash/export',
         '@canvash/interaction',
@@ -305,7 +306,7 @@ describe('release-ci (linha de comando)', () => {
     const result = cli(['use-release-urls', '--packages-dir', packagesDir, '--base-url', BASE]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('9 manifestos');
+    expect(result.stdout).toContain('10 manifestos');
     expect(readFileSync(join(packagesDir, 'react', 'package.json'), 'utf8')).toContain(
       `${BASE}/canvash-core-0.1.0-alpha.tgz`,
     );

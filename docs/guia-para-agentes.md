@@ -33,7 +33,7 @@ A biblioteca não está no npm. Os pacotes saem como arquivos `.tgz` anexados à
    ```
 3. Instale, trocando `V` pela versão da Release. Todo pacote `@canvash/*` que o seu código importa entra como dependência direta, e `@canvash/core` sempre:
    ```bash
-   V=0.1.0-alpha.1
+   V=0.2.0-alpha.1
    B=https://github.com/humbertosena/canvash/releases/download/v$V
    pnpm add $B/canvash-core-$V.tgz $B/canvash-react-$V.tgz react react-dom
    ```

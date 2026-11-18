@@ -24,7 +24,7 @@ const buildAll = (): void => {
   const result = spawnSync('pnpm', ['--filter', './packages/*', 'run', 'build'], {
     cwd: rootDir,
     encoding: 'utf8',
-    // O padrão de 1 MiB mataria o build com ENOBUFS se a saída dos 10 pacotes crescer.
+    // O padrão de 1 MiB mataria o build com ENOBUFS se a saída dos 11 pacotes crescer.
     maxBuffer: 64 * 1024 * 1024,
   });
   if (result.status !== 0) {

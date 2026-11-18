@@ -22,6 +22,11 @@ import { validatePresence } from './validate-presence.js';
 /** O que o vínculo usa de uma sessão de colaboração. */
 export interface CanvasPresenceSession {
   readonly sessionId: string;
+  /**
+   * Relógio do servidor menos o local, em ms. Com ele, `selectedAt` sai no relógio do servidor.
+   * Sem ele, vale o relógio local.
+   */
+  readonly serverTimeOffsetMs?: number;
   updatePresence(update: PresenceUpdate): void;
   getPresences(): readonly RemotePresence[];
   onPresenceChange(listener: (presences: readonly RemotePresence[]) => void): () => void;
@@ -39,7 +44,10 @@ export interface BindCanvasPresenceOptions {
   readonly pointerTarget?: PointerTargetLike | undefined;
   /** Recebe cada presença remota descartada por ser inválida. */
   readonly onError?: ((violation: PresenceViolation) => void) | undefined;
-  /** Relógio de `selectedAt`. Padrão: `Date.now`. */
+  /**
+   * Relógio local de `selectedAt`. Padrão: `Date.now`. O offset da sessão é somado a ele no
+   * momento em que a seleção começa.
+   */
   readonly now?: (() => number) | undefined;
   /** Tempo sem notícias para uma presença sair dos peers. Padrão: 30 s. */
   readonly presenceTimeoutMs?: number | undefined;
@@ -331,7 +339,10 @@ export function bindCanvasPresence(options: BindCanvasPresenceOptions): CanvasPr
     const onlyRemoved = ids.every((id) => previousSelection.includes(id));
     previousSelection = ids;
     if (ids.length === 0) localSelectedAt = null;
-    else if (!onlyRemoved || localSelectedAt === null) localSelectedAt = now();
+    else if (!onlyRemoved || localSelectedAt === null) {
+      // No relógio do servidor: todas as sessões comparam o mesmo número no desempate.
+      localSelectedAt = now() + (session.serverTimeOffsetMs ?? 0);
+    }
     publish({
       selection: ids,
       ...(ids.length > 0 && localSelectedAt !== null ? { selectedAt: localSelectedAt } : {}),

@@ -4,7 +4,7 @@
 
 Este guia leva do zero a um app novo, fora deste repositório, que instala `@canvash/react` de um registro npm **local** (Verdaccio) e desenha numa tela. Os pacotes ainda não estão no npmjs.
 
-Conferido em 2026-11-06, com Node 26, pnpm 11.1.2 e o template `react-ts` do `create-vite` 9.3.4. Foram executados contra um Verdaccio 6.11.1 de ensaio: subir o registro, criar o usuário por HTTP, publicar os dez tarballs, criar o app, instalar, `pnpm dev` com um retângulo desenhado, `pnpm build`, atualizar um patch e despublicar. Não foram conferidos de ponta a ponta: o `npm adduser` interativo e o `pnpm publish:local` real na `main`, com a tag `v<versão>`.
+Conferido em 2026-11-06, com Node 26, pnpm 11.1.2 e o template `react-ts` do `create-vite` 9.3.4. Foram executados contra um Verdaccio 6.11.1 de ensaio: subir o registro, criar o usuário por HTTP, publicar os dez tarballs da época (hoje são onze), criar o app, instalar, `pnpm dev` com um retângulo desenhado, `pnpm build`, atualizar um patch e despublicar. Não foram conferidos de ponta a ponta: o `npm adduser` interativo e o `pnpm publish:local` real na `main`, com a tag `v<versão>`.
 
 ## Visão geral
 
@@ -13,7 +13,7 @@ repositório canvash  ──pnpm publish:local──▶  Verdaccio (localhost:48
    main + tag v<versão>                         registro só da sua máquina
 ```
 
-- Os dez pacotes sobem juntos, na mesma versão (`0.1.0-alpha`, depois `0.1.0-alpha.1`…).
+- Os onze pacotes sobem juntos, na mesma versão (`0.1.0-alpha`, depois `0.1.0-alpha.1`…).
 - A publicação sai **só da `main`**, com a tag `v<versão>` no `HEAD` e a árvore limpa. Cada correção que o app precisa vira um patch novo.
 - Este fluxo só fala com o seu registro local. Nada daqui vai para o npm público nem para o GitHub: a Release do GitHub é criada por outro caminho (workflow `Release`, veja o README).
 
@@ -89,7 +89,7 @@ pnpm publish:local
 
 O `publish:local` confere, nesta ordem, e sai com código 2, sem publicar nada, se alguma falhar:
 
-1. os dez manifestos declaram `publishConfig.registry` igual ao registro usado;
+1. os onze manifestos declaram `publishConfig.registry` igual ao registro usado;
 2. todos têm a mesma versão;
 3. a árvore de trabalho está limpa;
 4. a branch é a `main`;
@@ -103,7 +103,7 @@ Só então roda `pnpm -r --filter "./packages/*" publish --registry http://local
 Pontos que importam:
 
 - **Use sempre o `pnpm`, nunca o `npm publish`.** No repositório, o `exports` de cada pacote aponta para `src`. Só o pnpm troca por `dist` no tarball e converte `workspace:*` na versão exata.
-- **O registro vem do `publishConfig`.** Nos testes, o `publishConfig.registry` de cada manifesto vence a opção `--registry` do `pnpm publish`. Por isso o `publish:local` exige que os dez manifestos declarem o mesmo registro que ele vai usar, e `--registry` só aceita `localhost` e `127.0.0.1`.
+- **O registro vem do `publishConfig`.** Nos testes, o `publishConfig.registry` de cada manifesto vence a opção `--registry` do `pnpm publish`. Por isso o `publish:local` exige que os onze manifestos declarem o mesmo registro que ele vai usar, e `--registry` só aceita `localhost` e `127.0.0.1`.
 - **Registro não aceita republicar.** Se a versão já existe, o script recusa. Suba a versão com `pnpm version:set` (seção 5).
 
 Confira o resultado:
@@ -192,7 +192,7 @@ No repositório do Canvash, para cada correção que o app precisa:
 ```bash
 git switch -c correcao-x               # trabalhe numa branch
 # ... corrija, com testes ...
-pnpm version:set 0.1.1                 # grava os dez manifestos e as sete constantes
+pnpm version:set 0.1.1                 # grava os onze manifestos e as oito constantes
 # acrescente "## 0.1.1 — AAAA-MM-DD" no topo do CHANGELOG.md de cada pacote
 pnpm check:full
 git commit -am "release: 0.1.1"

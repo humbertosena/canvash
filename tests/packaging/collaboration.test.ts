@@ -220,3 +220,180 @@ describe('@canvash/collaboration packaging contract', () => {
     }
   });
 });
+
+// --- Colaboração em rede (0.2.0): protocolo, codec e interface de transporte (US-P.8) ---
+
+const NETWORK_SMOKE_BODY = `
+const hello = {
+  t: 'hello',
+  v: PROTOCOL_VERSION,
+  provider: 'yjs',
+  documentId: 'doc',
+  sessionId: 'sess',
+  syncState: new Uint8Array([1, 2, 3]),
+};
+const viaText = decodeFrameFromText(encodeFrameAsText(encodeClientMessage(hello)));
+const back = decodeClientMessage(viaText.value);
+const refused = decodeServerMessage(new Uint8Array([0, 0, 0, 9]));
+console.log(
+  JSON.stringify({
+    version: PROTOCOL_VERSION,
+    maxFrame: DEFAULT_MAX_FRAME_BYTES,
+    roundTrip: back.ok && back.value.t === 'hello' && back.value.syncState.length === 3,
+    refused: !refused.ok && refused.error.code,
+    codes: COLLABORATION_ERROR_CODES.includes('PROTOCOL_ERROR'),
+  }),
+);
+`;
+
+const NETWORK_NAMES =
+  'PROTOCOL_VERSION, DEFAULT_MAX_FRAME_BYTES, COLLABORATION_ERROR_CODES, encodeClientMessage, ' +
+  'decodeClientMessage, decodeServerMessage, encodeFrameAsText, decodeFrameFromText';
+
+const NETWORK_TYPED_USAGE = `
+import {
+  DEFAULT_MAX_FRAME_BYTES,
+  MAX_FRAME_HEADER_BYTES,
+  PROTOCOL_VERSION,
+  decodeFrameFromText,
+  decodeServerMessage,
+  encodeClientMessage,
+  encodeFrameAsText,
+  ok,
+  type ClientMessage,
+  type CollaborationSession,
+  type CollaborationTransport,
+  type ConnectOptions,
+  type CreateTransport,
+  type PendingSummary,
+  type RoomAccess,
+  type ServerMessage,
+  type TransportInbound,
+  type TransportState,
+  type TransportWelcome,
+} from '@canvash/collaboration';
+
+// Um transporte escrito pelo host como objeto literal, sem classe base e sem cast.
+export const createTransport: CreateTransport = () => {
+  const state: TransportState = 'idle';
+  const welcome: TransportWelcome = {
+    roomEpoch: 'e1',
+    access: 'write',
+    missing: new Uint8Array(),
+    serverSyncState: new Uint8Array(),
+    serverTime: 0,
+  };
+  const transport: CollaborationTransport = {
+    state,
+    open: () => Promise.resolve(ok(welcome)),
+    commit: (commitId, _update, roomEpoch) =>
+      Promise.resolve(ok({ commitId, roomEpoch, timestamp: 0, durable: true })),
+    sync: () => Promise.resolve(ok(new Uint8Array())),
+    sendPresence() {},
+    onInbound: (_listener: (message: TransportInbound) => void) => () => {},
+    onStateChange: () => () => {},
+    close() {},
+  };
+  return transport;
+};
+
+export function describeSession(session: CollaborationSession): string {
+  const pending: PendingSummary = session.getPending();
+  const access: RoomAccess = session.access;
+  const offset: number = session.serverTimeOffsetMs;
+  session.flushPresence();
+  const stop = session.onPendingChange((summary) => summary.count + summary.bytes);
+  stop();
+  return access + pending.count + offset;
+}
+
+export const options: Pick<ConnectOptions, 'onStatusChange' | 'seedEmptyRoom' | 'receiptHistoryLimit'> = {
+  onStatusChange: (status, error) => status + (error?.code ?? ''),
+  seedEmptyRoom: false,
+  receiptHistoryLimit: 100,
+};
+
+const message: ClientMessage = { t: 'bye' };
+export const text: string = encodeFrameAsText(encodeClientMessage(message));
+const frame = decodeFrameFromText(text, { maxFrameBytes: DEFAULT_MAX_FRAME_BYTES });
+export const decoded: ServerMessage | undefined = frame.ok
+  ? (() => {
+      const result = decodeServerMessage(frame.value);
+      return result.ok ? result.value : undefined;
+    })()
+  : undefined;
+export const limits: number = PROTOCOL_VERSION + MAX_FRAME_HEADER_BYTES;
+`;
+
+describe('@canvash/collaboration: exports da colaboração em rede (US-P.8)', () => {
+  const EXPECTED = {
+    version: 1,
+    maxFrame: 32 * 1024 * 1024,
+    roundTrip: true,
+    refused: 'PROTOCOL_ERROR',
+    codes: true,
+  };
+
+  for (const bin of nodeBinaries) {
+    it(`protocolo, codec e codificação em texto funcionam via ESM em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'network-import.mjs');
+      writeFileSync(
+        scriptPath,
+        `import { ${NETWORK_NAMES} } from '@canvash/collaboration';\n${NETWORK_SMOKE_BODY}`,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      expect(result.stderr).toBe('');
+      expect(JSON.parse(result.stdout.trim())).toEqual(EXPECTED);
+    });
+
+    it(`protocolo, codec e codificação em texto funcionam via CJS em ${bin}`, () => {
+      const scriptPath = join(projectDir, 'network-require.cjs');
+      writeFileSync(
+        scriptPath,
+        `const { ${NETWORK_NAMES} } = require('@canvash/collaboration');\n${NETWORK_SMOKE_BODY}`,
+        'utf8',
+      );
+
+      const result = spawnSync(bin, [scriptPath], { cwd: projectDir, encoding: 'utf8' });
+
+      expect(result.stderr).toBe('');
+      expect(JSON.parse(result.stdout.trim())).toEqual(EXPECTED);
+    });
+  }
+
+  for (const consumer of TYPE_CONSUMERS) {
+    it(`a interface de transporte e os sinais da sessão compilam sob ${consumer.name}`, () => {
+      const testSubdir = join(projectDir, `typecheck-network-${consumer.name}`);
+      mkdirSync(testSubdir, { recursive: true });
+      const ext = consumer.type === 'module' ? 'mts' : 'cts';
+      writeFileSync(join(testSubdir, `consumer.${ext}`), NETWORK_TYPED_USAGE, 'utf8');
+      const tsconfigPath = join(testSubdir, 'tsconfig.json');
+      writeFileSync(
+        tsconfigPath,
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: consumer.module,
+            moduleResolution: consumer.resolution,
+            strict: true,
+            noEmit: true,
+            skipLibCheck: false,
+          },
+          include: [`consumer.${ext}`],
+        }),
+        'utf8',
+      );
+
+      const result = spawnSync(process.execPath, [tsc, '-p', tsconfigPath], {
+        cwd: testSubdir,
+        encoding: 'utf8',
+      });
+
+      expect(result.stdout).toBe('');
+      expect(result.status).toBe(0);
+    });
+  }
+});

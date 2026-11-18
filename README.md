@@ -2,7 +2,7 @@
 
 Biblioteca de canvas para desenho e quadros colaborativos na web. O motor não depende de DOM nem de framework; sobre ele há renderização em Canvas 2D, interações, persistência, exportação, colaboração CRDT (Yjs; nesta alpha o transporte dos exemplos é entre abas do mesmo navegador, sem servidor de rede) e adaptadores para React, Vue e Web Components.
 
-> **Versão `0.1.0-alpha.1`.** Liberação alpha: a API pode mudar entre versões alpha sem aviso de depreciação. A biblioteca **não é publicada no npm**: usa-se apontando direto para o GitHub; veja [Instalação](#instalação).
+> **Versão `0.2.0-alpha.1`.** Liberação alpha: a API pode mudar entre versões alpha sem aviso de depreciação. A biblioteca **não é publicada no npm**: usa-se apontando direto para o GitHub; veja [Instalação](#instalação).
 
 ## Pacotes
 
@@ -16,7 +16,8 @@ Todos os pacotes saem juntos, na mesma versão, na mesma Release do GitHub.
 | [`@canvash/persistence`](./packages/persistence) | Serialização canônica, migrações e autosave |
 | [`@canvash/export`](./packages/export) | Exportação para SVG e PNG |
 | [`@canvash/collaboration`](./packages/collaboration) | Contratos e abstrações de colaboração |
-| [`@canvash/collaboration-yjs`](./packages/collaboration-yjs) | Provider CRDT em tempo real sobre Yjs |
+| [`@canvash/collaboration-yjs`](./packages/collaboration-yjs) | Provider CRDT em tempo real sobre Yjs e o transporte WebSocket (`createWebSocketTransport`) |
+| [`@canvash/collaboration-server`](./packages/collaboration-server) | Servidor Node de referência da colaboração: salas, ACK durável, armazenamento plugável, adaptador `ws` e CLI de desenvolvimento (ver o [guia](./docs/colaboracao-em-rede.md)) |
 | [`@canvash/web-components`](./packages/web-components) | Componentes Web (Lit) prontos para uso |
 | [`@canvash/react`](./packages/react) | Componentes e hooks React |
 | [`@canvash/vue`](./packages/vue) | Componentes e composables Vue 3 |
@@ -40,12 +41,12 @@ Essa chave vale para todas as dependências do app, não só para as `@canvash/*
 **2. Instale.** Troque `V` pela versão da Release que você quer (veja a [página de Releases](https://github.com/humbertosena/canvash/releases)):
 
 ```bash
-V=0.1.0-alpha.1
+V=0.2.0-alpha.1
 B=https://github.com/humbertosena/canvash/releases/download/v$V
 pnpm add $B/canvash-core-$V.tgz $B/canvash-react-$V.tgz react react-dom
 ```
 
-Para cada pacote, o arquivo se chama `canvash-<nome>-<versão>.tgz`: `canvash-core`, `canvash-react`, `canvash-vue`, `canvash-web-components`, `canvash-renderer-canvas2d`, `canvash-interaction`, `canvash-persistence`, `canvash-export`, `canvash-collaboration` e `canvash-collaboration-yjs`. **Instale como dependência direta todo pacote `@canvash/*` que o seu código importa** (ao menos `@canvash/core`): o pnpm não expõe ao app uma dependência que só outro pacote declara.
+Para cada pacote, o arquivo se chama `canvash-<nome>-<versão>.tgz`: `canvash-core`, `canvash-react`, `canvash-vue`, `canvash-web-components`, `canvash-renderer-canvas2d`, `canvash-interaction`, `canvash-persistence`, `canvash-export`, `canvash-collaboration`, `canvash-collaboration-yjs` e `canvash-collaboration-server`. **Instale como dependência direta todo pacote `@canvash/*` que o seu código importa** (ao menos `@canvash/core`): o pnpm não expõe ao app uma dependência que só outro pacote declara.
 
 **3. Conferir a integridade (opcional).** Baixe da página da Release os `.tgz` que quer conferir e o `SHA256SUMS` para a mesma pasta e rode `shasum -a 256 --ignore-missing -c SHA256SUMS`. O `SHA256SUMS` está na mesma Release dos arquivos: ele detecta download corrompido, não protege contra uma Release adulterada. Depois do primeiro `pnpm add`, o `pnpm-lock.yaml` do app guarda o hash de cada tarball e o pnpm o confere nas instalações seguintes.
 
@@ -116,7 +117,7 @@ Não há publicação em registro npm. A Release do GitHub é criada por um work
 1. Numa branch, suba a versão: `pnpm version:set <versão>`, acrescente a seção `## <versão> — AAAA-MM-DD` no `CHANGELOG.md` de cada pacote e atualize a linha `V=` do README, de `docs/guia-para-agentes.md` e dos READMEs dos pacotes (o teste `release-ci` aponta o arquivo que ficar para trás).
 2. Abra a PR para a `main` (push direto é bloqueado) e mescle.
 3. Espere a CI da `main` ficar verde.
-4. Em **Actions → Release → Run workflow**, na `main`: o workflow confere a versão, monta os dez tarballs, cria a tag `v<versão>` e a Release (marcada como pré-release quando a versão tem hífen, como `0.1.0-alpha`) com os `.tgz` e o `SHA256SUMS`. Marque `dry_run` para só simular.
+4. Em **Actions → Release → Run workflow**, na `main`: o workflow confere a versão, monta os onze tarballs, cria a tag `v<versão>` e a Release (marcada como pré-release quando a versão tem hífen, como `0.1.0-alpha`) com os `.tgz` e o `SHA256SUMS`. Marque `dry_run` para só simular.
 
 ## Licença
 

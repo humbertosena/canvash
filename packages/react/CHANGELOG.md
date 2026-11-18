@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0-alpha.1 — 2026-11-17
+
+- Sem mudanças: a versão acompanha os demais pacotes.
+
 ## 0.1.0-alpha.1 — 2026-11-15
 
 - O campo de título da casca volta a aceitar a tecla Espaço (correção em `@canvash/interaction`).

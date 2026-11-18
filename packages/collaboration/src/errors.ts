@@ -1,19 +1,24 @@
 export type Result<T = void, E = CollaborationError> =
   { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: E };
 
-export type CollaborationErrorCode =
-  | 'INVALID_DOCUMENT'
-  | 'UNSUPPORTED_VERSION'
-  | 'UNAUTHORIZED'
-  | 'CONFLICT'
-  | 'LIMIT_EXCEEDED'
-  | 'ROOM_EPOCH_MISMATCH'
-  | 'PENDING_CHANGES'
-  | 'STORAGE_UNAVAILABLE'
-  | 'CONNECTION_FAILED'
-  | 'DISCONNECTED'
-  | 'NOT_FOUND'
-  | 'UNSUPPORTED';
+/** Todos os códigos de erro da colaboração. A lista cresce; nenhum código muda de sentido. */
+export const COLLABORATION_ERROR_CODES = [
+  'INVALID_DOCUMENT',
+  'UNSUPPORTED_VERSION',
+  'UNAUTHORIZED',
+  'CONFLICT',
+  'LIMIT_EXCEEDED',
+  'ROOM_EPOCH_MISMATCH',
+  'PENDING_CHANGES',
+  'STORAGE_UNAVAILABLE',
+  'CONNECTION_FAILED',
+  'DISCONNECTED',
+  'NOT_FOUND',
+  'UNSUPPORTED',
+  'PROTOCOL_ERROR',
+] as const;
+
+export type CollaborationErrorCode = (typeof COLLABORATION_ERROR_CODES)[number];
 
 export interface CollaborationError {
   readonly code: CollaborationErrorCode;
