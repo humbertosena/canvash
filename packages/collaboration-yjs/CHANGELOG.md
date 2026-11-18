@@ -1,6 +1,6 @@
 # Changelog
 
-## Não lançado (pré-release 0.2.0-alpha.1)
+## 0.2.0-alpha.1 — 2026-11-17
 
 - `createWebSocketTransport`: transporte de rede sobre o `WebSocket` nativo, com handshake, reconexão com backoff e jitter, `resync` na volta, erros que param ou tentam de novo por código e presença com backpressure.
 - A sessão e o provider falam por `CollaborationTransport` (de `@canvash/collaboration`) em vez do hub em memória; `YjsProviderOptions` ganha `createTransport`. **Mudança do construtor da sessão:** `new YjsCollaborationSession(transport, options, sessionId, initial?, createTransport?)`. O primeiro argumento, que era o `DeterministicTransportHub`, agora é um `CollaborationTransport` (o hub antigo continua aceito, por um adaptador); o quarto, que era só o estado inicial em bytes, também aceita o `TransportWelcome` do handshake; o quinto, novo, é a fábrica que a sessão usa para reconectar. `handleTransportMessage` fica `@deprecated`. Quem só usa `YjsCollaborationProvider` não muda nada.

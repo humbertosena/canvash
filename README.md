@@ -2,7 +2,7 @@
 
 Biblioteca de canvas para desenho e quadros colaborativos na web. O motor não depende de DOM nem de framework; sobre ele há renderização em Canvas 2D, interações, persistência, exportação, colaboração CRDT (Yjs; nesta alpha o transporte dos exemplos é entre abas do mesmo navegador, sem servidor de rede) e adaptadores para React, Vue e Web Components.
 
-> **Versão `0.1.0-alpha.1`.** Liberação alpha: a API pode mudar entre versões alpha sem aviso de depreciação. A biblioteca **não é publicada no npm**: usa-se apontando direto para o GitHub; veja [Instalação](#instalação).
+> **Versão `0.2.0-alpha.1`.** Liberação alpha: a API pode mudar entre versões alpha sem aviso de depreciação. A biblioteca **não é publicada no npm**: usa-se apontando direto para o GitHub; veja [Instalação](#instalação).
 
 ## Pacotes
 
@@ -41,7 +41,7 @@ Essa chave vale para todas as dependências do app, não só para as `@canvash/*
 **2. Instale.** Troque `V` pela versão da Release que você quer (veja a [página de Releases](https://github.com/humbertosena/canvash/releases)):
 
 ```bash
-V=0.1.0-alpha.1
+V=0.2.0-alpha.1
 B=https://github.com/humbertosena/canvash/releases/download/v$V
 pnpm add $B/canvash-core-$V.tgz $B/canvash-react-$V.tgz react react-dom
 ```

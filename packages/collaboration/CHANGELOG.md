@@ -1,6 +1,6 @@
 # Changelog
 
-## Não lançado (pré-release 0.2.0-alpha.1)
+## 0.2.0-alpha.1 — 2026-11-17
 
 - Protocolo de rede do Canvash: mensagens `hello`, `commit`, `sync`, `presence` e `bye` (cliente) e `welcome`, `ack`, `synced`, `update`, `presence` e `error` (servidor), com o codec binário `encodeClientMessage`, `decodeClientMessage`, `encodeServerMessage` e `decodeServerMessage` (nunca lançam: o que não serve volta `PROTOCOL_ERROR`) e `PROTOCOL_VERSION`.
 - Codificação do quadro em texto (`encodeFrameAsText`, `decodeFrameFromText`, base64 padrão), para meios que não carregam binário.

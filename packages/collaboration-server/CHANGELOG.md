@@ -1,6 +1,6 @@
 # Changelog
 
-## Não lançado (pré-release 0.2.0-alpha.1)
+## 0.2.0-alpha.1 — 2026-11-17
 
 - `createCollaborationServer`: núcleo do servidor sobre `ServerConnection`, independente do meio, com handshake, salas carregadas sob demanda, commits em lote validados por projeção e gravados antes do `ack`, presença com identidade imposta, `compact`, `rotateEpoch`, `disconnect` e `close`.
 - `RoomStorage` em lote, com `createMemoryRoomStorage` e `createFileRoomStorage`, e a suíte de contrato `roomStorageContractCases` em `@canvash/collaboration-server/testing`.

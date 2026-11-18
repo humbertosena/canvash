@@ -1,6 +1,6 @@
 {
   "name": "@canvash/interaction",
-  "version": "0.1.0-alpha.1",
+  "version": "0.2.0-alpha.1",
   "license": "MIT",
   "description": "Adaptador universal de interações e gestos para o Canvash.",
   "type": "module",

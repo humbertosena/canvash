@@ -1,6 +1,6 @@
 {
   "name": "@canvash/collaboration",
-  "version": "0.1.0-alpha.1",
+  "version": "0.2.0-alpha.1",
   "license": "MIT",
   "description": "Contratos genéricos, tipos, indexação fracionária e abstrações de colaboração para Canvash.",
   "type": "module",

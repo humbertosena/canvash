@@ -1,6 +1,6 @@
 {
   "name": "@canvash/vue",
-  "version": "0.1.0-alpha.1",
+  "version": "0.2.0-alpha.1",
   "license": "MIT",
   "description": "Componentes e composables Vue 3 para o Canvash.",
   "type": "module",
