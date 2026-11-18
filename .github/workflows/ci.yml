@@ -16,7 +16,10 @@ concurrency:
 jobs:
   check-full:
     name: Full Verification (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    # Fixo em 24.04: o `ubuntu-latest` passou a 26.04 em 2026-11, e nessa imagem o WebKit do
+    # Playwright (o mesmo build, 26.6) troca espaços por `_` no nome dos downloads e deixa os
+    # testes de colaboração instáveis. A passagem para 26.04 é uma mudança própria, com os testes.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
